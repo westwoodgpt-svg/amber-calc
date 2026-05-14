@@ -10,6 +10,7 @@ interface Props {
   onUpdate: (id: string, data: Omit<Container, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   loading: boolean
+  flashIds?: Set<string>
 }
 
 function useFractionOptions(category: string) {
@@ -221,13 +222,20 @@ function CategoryBadge({ category }: { category: string }) {
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
-export default function ContainerTable({ containers, onAdd, onUpdate, onDelete, loading }: Props) {
+export default function ContainerTable({ containers, onAdd, onUpdate, onDelete, loading, flashIds }: Props) {
   const [editId, setEditId] = useState<string | null>(null)
   const editContainer = containers.find(c => c.id === editId)
 
   return (
     <div className="card">
-      <div className="card-title">📦 Склад контейнеров</div>
+      <div className="card-title">
+        📦 Склад контейнеров
+        {flashIds && flashIds.size > 0 && (
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--green)', fontWeight: 500, animation: 'fadeIn 0.3s ease' }}>
+            ✓ остатки обновлены
+          </span>
+        )}
+      </div>
 
       {containers.length === 0 ? (
         <div className="empty-state" style={{ padding: '32px 0' }}>
@@ -252,12 +260,14 @@ export default function ContainerTable({ containers, onAdd, onUpdate, onDelete, 
               </thead>
               <tbody>
                 {containers.map(c => (
-                  <tr key={c.id}>
+                  <tr key={c.id} className={flashIds?.has(c.id) ? 'row-flash' : ''}>
                     <td style={{ fontWeight: 500 }}>{c.name}</td>
                     <td><CategoryBadge category={c.category} /></td>
                     <td>{c.fraction ? <span className="frac-badge">{c.fraction}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                     <td className="text-right font-mono">{c.weight.toFixed(3)}</td>
-                    <td className="text-right">{c.quantity}</td>
+                    <td className="text-right font-mono" style={flashIds?.has(c.id) ? { color: 'var(--amber)', fontWeight: 700 } : {}}>
+                      {c.quantity}
+                    </td>
                     <td className="text-right font-mono">{(c.weight * c.quantity).toFixed(3)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
@@ -274,7 +284,7 @@ export default function ContainerTable({ containers, onAdd, onUpdate, onDelete, 
           {/* Mobile cards */}
           <div className="mobile-cards mobile-only">
             {containers.map(c => (
-              <div key={c.id} className="container-card">
+              <div key={c.id} className={`container-card${flashIds?.has(c.id) ? ' card-flash' : ''}`}>
                 <div className="container-card-header">
                   <span className="container-card-name">{c.name}</span>
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -288,7 +298,7 @@ export default function ContainerTable({ containers, onAdd, onUpdate, onDelete, 
                 </div>
                 <div className="container-card-row">
                   <span>Вес: <strong className="font-mono">{c.weight.toFixed(3)} кг</strong></span>
-                  <span>Кол-во: <strong>{c.quantity}</strong></span>
+                  <span>Кол-во: <strong style={flashIds?.has(c.id) ? { color: 'var(--amber)' } : {}}>{c.quantity}</strong></span>
                   <span>Итого: <strong className="font-mono">{(c.weight * c.quantity).toFixed(3)} кг</strong></span>
                 </div>
               </div>

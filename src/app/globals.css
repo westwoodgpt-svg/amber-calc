@@ -498,6 +498,26 @@ tbody tr:hover { background: var(--bg-card2); }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+@keyframes rowFlash {
+  0%   { background: rgba(245, 158, 11, 0.25); }
+  60%  { background: rgba(245, 158, 11, 0.12); }
+  100% { background: transparent; }
+}
+
+@keyframes cardFlash {
+  0%   { border-color: var(--amber); background: rgba(245, 158, 11, 0.08); }
+  70%  { border-color: rgba(245, 158, 11, 0.4); }
+  100% { border-color: var(--border); background: var(--bg-card2); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.row-flash { animation: rowFlash 2.2s ease forwards; }
+.card-flash { animation: cardFlash 2.2s ease forwards; }
+
 /* ── Utilities ───────────────────────────────────────────────────────────── */
 .section-divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 .text-right { text-align: right; }

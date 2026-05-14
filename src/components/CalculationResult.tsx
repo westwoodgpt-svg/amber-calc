@@ -125,7 +125,9 @@ export default function CalculationResult({ result, onSave, saving, saved }: Pro
           </button>
         </div>
       ) : (
-        <div className="alert alert-success mb-0">Расчёт сохранён в историю</div>
+        <div className="alert alert-success mb-0">
+          ✅ Сохранено в историю — остатки на складе обновлены ↓
+        </div>
       )}
     </div>
   )

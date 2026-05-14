@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import ContainerTable from '@/components/ContainerTable'
 import CalculationResult from '@/components/CalculationResult'
 import type { Container, CalculationResult as Res } from '@/lib/types'
@@ -21,6 +21,8 @@ export default function CalculatorPage() {
   const [calculating, setCalculating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [flashIds, setFlashIds] = useState<Set<string>>(new Set())
+  const stockRef = useRef<HTMLDivElement>(null)
 
   const loadContainers = useCallback(async () => {
     setLoading(true)
@@ -137,8 +139,17 @@ export default function CalculatorPage() {
         return
       }
       setSaved(true)
-      // Refresh stock after deduction
+      // Snapshot current quantities before refresh
+      const prevQty: Record<string, number> = {}
+      containers.forEach(c => { prevQty[c.id] = c.quantity })
+      // Refresh stock
       await loadContainers()
+      // Highlight changed rows
+      const usedIds = new Set(result.selectedContainers.map(c => c.id))
+      setFlashIds(usedIds)
+      setTimeout(() => setFlashIds(new Set()), 2500)
+      // Scroll to stock table
+      setTimeout(() => stockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100)
     } catch { setError('Ошибка при сохранении') }
     finally { setSaving(false) }
   }
@@ -225,13 +236,16 @@ export default function CalculatorPage() {
         <CalculationResult result={result} onSave={handleSave} saving={saving} saved={saved} />
       )}
 
-      <ContainerTable
-        containers={containers}
-        onAdd={handleAdd}
-        onUpdate={handleUpdate}
-        onDelete={handleDelete}
-        loading={tableLoading}
-      />
+      <div ref={stockRef}>
+        <ContainerTable
+          containers={containers}
+          onAdd={handleAdd}
+          onUpdate={handleUpdate}
+          onDelete={handleDelete}
+          loading={tableLoading}
+          flashIds={flashIds}
+        />
+      </div>
     </>
   )
 }
