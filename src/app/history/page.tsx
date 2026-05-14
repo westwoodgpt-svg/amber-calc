@@ -71,7 +71,7 @@ export default function HistoryPage() {
                   <span>🎯 {calc.targetWeight.toFixed(3)} кг</span>
                   <span>✅ {calc.totalWeight.toFixed(3)} кг</span>
                   <span style={{ color: calc.overweight > 0.001 ? 'var(--red)' : 'var(--green)' }}>
-                    Δ +{calc.overweight.toFixed(3)} кг
+                    Δ {calc.overweight > 0.001 ? '+' : ''}{calc.overweight.toFixed(3)} кг
                   </span>
                   {calc.category && (
                     <span className="cat-badge-sm">{calc.category}</span>

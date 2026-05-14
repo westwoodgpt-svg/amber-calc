@@ -65,7 +65,7 @@ export default function HistoryModal({ calc, onClose, onDelete }: Props) {
           <div className="stat-item">
             <div className="stat-label">Перевес</div>
             <div className={`stat-value ${calc.overweight > 0.001 ? 'red' : 'green'}`} style={{ fontSize: 18 }}>
-              +{calc.overweight.toFixed(3)}<span className="stat-unit"> кг</span>
+              {calc.overweight > 0.001 ? '+' : ''}{calc.overweight.toFixed(3)}<span className="stat-unit"> кг</span>
             </div>
           </div>
         </div>

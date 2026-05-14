@@ -75,14 +75,13 @@ export function solveKnapsack(
   }
 
   if (bestW === -1) {
-    // Fallback: use all containers
-    let total = 0
-    const sel: SelectedContainer[] = []
-    for (const c of containers) {
-      total += c.weight * c.quantity
-      sel.push({ id: c.id, name: c.name, category: c.category, fraction: c.fraction, weight: c.weight, quantityUsed: c.quantity })
-    }
-    return { selectedContainers: sel, totalWeight: total, targetWeight, overweight: total - targetWeight, feasible: false }
+    // Fallback: use all available containers (qty > 0 already guaranteed by caller)
+    const sel: SelectedContainer[] = containers
+      .filter((c) => c.quantity > 0)
+      .map((c) => ({ id: c.id, name: c.name, category: c.category, fraction: c.fraction, weight: c.weight, quantityUsed: c.quantity }))
+    const total = parseFloat(sel.reduce((s, c) => s + c.weight * c.quantityUsed, 0).toFixed(3))
+    const overweight = parseFloat(Math.max(0, total - targetWeight).toFixed(3))
+    return { selectedContainers: sel, totalWeight: total, targetWeight, overweight, feasible: false }
   }
 
   // Reconstruct
@@ -104,12 +103,16 @@ export function solveKnapsack(
     return { id, name: c.name, category: c.category, fraction: c.fraction, weight: c.weight, quantityUsed: qty }
   })
 
-  const totalWeight = bestW / scale
+  // Use actual container weights (not DP integer) to avoid rounding discrepancy
+  const totalWeight = parseFloat(
+    selectedContainers.reduce((s, c) => s + c.weight * c.quantityUsed, 0).toFixed(3)
+  )
+  const overweight = parseFloat(Math.max(0, totalWeight - targetWeight).toFixed(3))
   return {
     selectedContainers,
     totalWeight,
     targetWeight,
-    overweight: parseFloat((totalWeight - targetWeight).toFixed(4)),
+    overweight,
     feasible: true,
   }
 }

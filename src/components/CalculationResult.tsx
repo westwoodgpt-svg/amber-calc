@@ -38,7 +38,7 @@ export default function CalculationResult({ result, onSave, saving, saved }: Pro
         <div className="stat-item">
           <div className="stat-label">Перевес</div>
           <div className={`stat-value ${overweight > 0.001 ? 'red' : 'green'}`}>
-            +{overweight.toFixed(3)}<span className="stat-unit"> кг</span>
+            {overweight > 0.001 ? '+' : ''}{overweight.toFixed(3)}<span className="stat-unit"> кг</span>
           </div>
         </div>
         <div className="stat-item">
@@ -52,7 +52,7 @@ export default function CalculationResult({ result, onSave, saving, saved }: Pro
       {overweight > 0.001 && (
         <div className="alert alert-info" style={{ marginBottom: 16 }}>
           <strong>Разница для будущей поставки:</strong>{' '}
-          +{overweight.toFixed(3)} кг — будет учтена в следующем заказе
+          +{overweight.toFixed(3)} кг — учтите при следующем заказе
         </div>
       )}
 

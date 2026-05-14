@@ -32,6 +32,16 @@ export async function POST(request: Request) {
       )
     }
 
+    // Exclude depleted containers
+    const available = containers.filter((c) => c.quantity > 0)
+    if (available.length === 0) {
+      return NextResponse.json(
+        { error: 'Все контейнеры данной категории уже израсходованы. Пополните склад.' },
+        { status: 400 }
+      )
+    }
+    containers = available
+
     const result = solveKnapsack(containers, targetWeight)
 
     return NextResponse.json({
