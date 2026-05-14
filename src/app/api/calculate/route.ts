@@ -5,26 +5,29 @@ import { solveKnapsack } from '@/lib/knapsack'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { targetWeight, fraction, allowMixing } = body
+    const { targetWeight, category, fraction, allowMixing } = body
 
-    if (!targetWeight || typeof targetWeight !== 'number' || targetWeight <= 0) {
-      return NextResponse.json({ error: 'targetWeight must be a positive number' }, { status: 400 })
+    if (typeof targetWeight !== 'number' || targetWeight <= 0) {
+      return NextResponse.json({ error: 'Целевой вес должен быть положительным числом' }, { status: 400 })
     }
-    if (!allowMixing && !fraction) {
-      return NextResponse.json({ error: 'fraction is required when mixing is not allowed' }, { status: 400 })
+    if (!allowMixing && !category) {
+      return NextResponse.json({ error: 'Выберите категорию или включите смешивание' }, { status: 400 })
     }
 
-    // Fetch containers from DB
     const allContainers = await prisma.container.findMany()
 
-    // Filter by fraction unless mixing is allowed
-    const containers = allowMixing
-      ? allContainers
-      : allContainers.filter((c) => c.fraction === fraction)
+    let containers = allContainers
+    if (!allowMixing) {
+      containers = allContainers.filter((c) => {
+        if (c.category !== category) return false
+        if (fraction) return c.fraction === fraction
+        return true
+      })
+    }
 
     if (containers.length === 0) {
       return NextResponse.json(
-        { error: 'No containers found for the selected fraction' },
+        { error: 'Контейнеры с заданными параметрами не найдены. Проверьте наличие позиций на складе.' },
         { status: 400 }
       )
     }
@@ -33,10 +36,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ...result,
-      fraction: allowMixing ? null : fraction,
+      category: allowMixing ? null : category,
+      fraction: allowMixing ? null : (fraction ?? null),
       allowMixing: !!allowMixing,
     })
   } catch {
-    return NextResponse.json({ error: 'Calculation failed' }, { status: 500 })
+    return NextResponse.json({ error: 'Ошибка при расчёте' }, { status: 500 })
   }
 }

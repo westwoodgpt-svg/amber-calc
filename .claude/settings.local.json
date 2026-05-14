@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(gh repo *)",
+      "PowerShell(gh repo create amber-calc --public --description \"�������� ������ ���⥩��஢ � ����\" --source \"C:\\\\Users\\\\dshp3\\\\aMBER CALC\" --push 2>&1)",
+      "PowerShell(cd \"C:\\\\Users\\\\dshp3\\\\aMBER CALC\"; $env:DATABASE_URL=\"postgresql://neondb_owner:npg_9SNoj4gGatZi@ep-orange-wave-alpmeu56.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require\"; $env:DIRECT_URL=$env:DATABASE_URL; npx next build 2>&1 | Select-Object -Last 30)",
+      "Bash(git push *)",
+      "Bash(git remote *)",
+      "Bash(git commit -m 'feat: real КЯК amber data model + mobile optimization *)"
     ]
   }
 }

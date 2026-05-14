@@ -1,11 +1,9 @@
 'use client'
 
 import type { Calculation } from '@/lib/types'
+import { CATEGORY_COLORS } from '@/lib/constants'
 
-interface Props {
-  calc: Calculation
-  onClose: () => void
-}
+interface Props { calc: Calculation; onClose: () => void }
 
 export default function HistoryModal({ calc, onClose }: Props) {
   const { result } = calc
@@ -20,51 +18,83 @@ export default function HistoryModal({ calc, onClose }: Props) {
 
         <div className="result-stats" style={{ marginBottom: 16 }}>
           <div className="stat-item">
-            <div className="stat-label">Целевой вес</div>
-            <div className="stat-value" style={{ fontSize: 18 }}>{calc.targetWeight.toFixed(3)} кг</div>
+            <div className="stat-label">Цель</div>
+            <div className="stat-value" style={{ fontSize: 18 }}>{calc.targetWeight.toFixed(3)}<span className="stat-unit"> кг</span></div>
           </div>
           <div className="stat-item">
             <div className="stat-label">Итого</div>
-            <div className="stat-value green" style={{ fontSize: 18 }}>{calc.totalWeight.toFixed(3)} кг</div>
+            <div className="stat-value green" style={{ fontSize: 18 }}>{calc.totalWeight.toFixed(3)}<span className="stat-unit"> кг</span></div>
           </div>
           <div className="stat-item">
             <div className="stat-label">Перевес</div>
-            <div className={`stat-value ${calc.overweight > 0 ? 'red' : 'green'}`} style={{ fontSize: 18 }}>
-              +{calc.overweight.toFixed(3)} кг
+            <div className={`stat-value ${calc.overweight > 0.001 ? 'red' : 'green'}`} style={{ fontSize: 18 }}>
+              +{calc.overweight.toFixed(3)}<span className="stat-unit"> кг</span>
             </div>
           </div>
         </div>
 
-        <div style={{ marginBottom: 12, fontSize: 13, color: 'var(--text-muted)', display: 'flex', gap: 16 }}>
+        <div style={{ marginBottom: 12, fontSize: 13, color: 'var(--text-muted)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {calc.category && <span>Категория: <strong style={{ color: 'var(--text)' }}>{calc.category}</strong></span>}
           {calc.fraction && <span>Фракция: <strong style={{ color: 'var(--text)' }}>{calc.fraction}</strong></span>}
           <span>Смешивание: <strong style={{ color: 'var(--text)' }}>{calc.allowMixing ? 'да' : 'нет'}</strong></span>
           <span>Дата: <strong style={{ color: 'var(--text)' }}>{new Date(calc.createdAt).toLocaleString('ru-RU')}</strong></span>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
+        {/* Desktop */}
+        <div className="table-wrap desktop-only">
           <table>
             <thead>
               <tr>
+                <th>Наименование</th>
+                <th>Вид</th>
                 <th>Фракция</th>
-                <th>Вес (кг)</th>
-                <th>Кол-во</th>
-                <th>Сумма (кг)</th>
+                <th className="text-right">Вес (кг)</th>
+                <th className="text-right">Кол-во</th>
+                <th className="text-right">Сумма (кг)</th>
               </tr>
             </thead>
             <tbody>
-              {result.selectedContainers.map(c => (
-                <tr key={c.id}>
-                  <td><span className="badge badge-amber">{c.fraction}</span></td>
-                  <td className="font-mono">{c.weight.toFixed(3)}</td>
-                  <td>{c.quantityUsed}</td>
-                  <td className="font-mono">{(c.weight * c.quantityUsed).toFixed(3)}</td>
-                </tr>
-              ))}
+              {result.selectedContainers.map(c => {
+                const color = CATEGORY_COLORS[c.category] ?? '#6b7280'
+                return (
+                  <tr key={c.id}>
+                    <td style={{ fontWeight: 500 }}>{c.name}</td>
+                    <td><span className="cat-badge" style={{ background: color + '22', color, borderColor: color + '44' }}>{c.category}</span></td>
+                    <td>{c.fraction ? <span className="frac-badge">{c.fraction}</span> : '—'}</td>
+                    <td className="text-right font-mono">{c.weight.toFixed(3)}</td>
+                    <td className="text-right">{c.quantityUsed}</td>
+                    <td className="text-right font-mono">{(c.weight * c.quantityUsed).toFixed(3)}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
 
-        {calc.overweight > 0 && (
+        {/* Mobile */}
+        <div className="mobile-cards mobile-only">
+          {result.selectedContainers.map(c => {
+            const color = CATEGORY_COLORS[c.category] ?? '#6b7280'
+            return (
+              <div key={c.id} className="container-card">
+                <div className="container-card-header">
+                  <span className="container-card-name">{c.name}</span>
+                  <span className="frac-badge">{c.quantityUsed} шт</span>
+                </div>
+                <div className="container-card-meta">
+                  <span className="cat-badge" style={{ background: color + '22', color, borderColor: color + '44' }}>{c.category}</span>
+                  {c.fraction && <span className="frac-badge">{c.fraction}</span>}
+                </div>
+                <div className="container-card-row">
+                  <span>Вес: <strong>{c.weight.toFixed(3)} кг</strong></span>
+                  <span>Сумма: <strong>{(c.weight * c.quantityUsed).toFixed(3)} кг</strong></span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {calc.overweight > 0.001 && (
           <div className="alert alert-info mt-4">
             <strong>Разница для будущей поставки:</strong> +{calc.overweight.toFixed(3)} кг
           </div>
