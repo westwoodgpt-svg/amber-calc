@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 72" fill="none">
+  <!-- Outer teardrop / location-pin shell -->
+  <path d="M28 2C14.7 2 4 12.7 4 26c0 17 24 44 24 44S52 43 52 26C52 12.7 41.3 2 28 2z" fill="#E09A5A"/>
+  <!-- Inner white cutout (ring) -->
+  <path d="M28 10C18.6 10 11 17.6 11 27c0 9.4 7.6 17 17 17s17-7.6 17-17c0-9.4-7.6-17-17-17z" fill="white"/>
+  <!-- Rocket body -->
+  <path d="M28 14c-3.5 0-7 3-7 8v8l7 6 7-6v-8c0-5-3.5-8-7-8z" fill="#E09A5A"/>
+  <!-- Rocket porthole -->
+  <circle cx="28" cy="23" r="3" fill="white"/>
+  <!-- Rocket fins -->
+  <path d="M21 30l-4 4h4v-4z" fill="#E09A5A"/>
+  <path d="M35 30l4 4h-4v-4z" fill="#E09A5A"/>
+  <!-- Flame -->
+  <path d="M24 58l4 10 4-10-4 2-4-2z" fill="#E84E3A"/>
+  <!-- Small diamond sparkle (top right) -->
+  <rect x="44" y="3" width="8" height="8" rx="1" transform="rotate(45 48 7)" fill="#E09A5A" opacity="0.7"/>
+</svg>

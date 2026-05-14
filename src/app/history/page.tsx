@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import HistoryModal from '@/components/HistoryModal'
 import type { Calculation } from '@/lib/types'
+import { exportHistoryToExcel } from '@/lib/exportExcel'
 
 export default function HistoryPage() {
   const [calculations, setCalculations] = useState<Calculation[]>([])
@@ -10,6 +11,7 @@ export default function HistoryPage() {
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<Calculation | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -22,6 +24,15 @@ export default function HistoryPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  async function handleExport() {
+    setExporting(true)
+    try {
+      exportHistoryToExcel(calculations)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   async function handleDelete(id: string, e: React.MouseEvent) {
     e.stopPropagation()
@@ -60,8 +71,18 @@ export default function HistoryPage() {
         </div>
       ) : (
         <>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
-            Всего: {calculations.length}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Всего: {calculations.length}</span>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={handleExport}
+              disabled={exporting}
+              title="Экспорт в Excel"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}
+            >
+              {exporting ? <span className="spinner" style={{ width: 14, height: 14 }} /> : '📊'}
+              Экспорт в Excel
+            </button>
           </div>
           {calculations.map(calc => (
             <div key={calc.id} className="history-item" onClick={() => setSelected(calc)}>

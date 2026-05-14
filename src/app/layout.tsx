@@ -5,6 +5,10 @@ import Navbar from '@/components/Navbar'
 export const metadata: Metadata = {
   title: 'Amber Calc — Калькулятор контейнеров',
   description: 'Подбор контейнеров с янтарём по целевому весу',
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
