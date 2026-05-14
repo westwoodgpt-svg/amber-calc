@@ -9,7 +9,8 @@
       "PowerShell(cd \"C:\\\\Users\\\\dshp3\\\\aMBER CALC\"; $env:DATABASE_URL=\"postgresql://neondb_owner:npg_9SNoj4gGatZi@ep-orange-wave-alpmeu56.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require\"; $env:DIRECT_URL=$env:DATABASE_URL; npx next build 2>&1 | Select-Object -Last 30)",
       "Bash(git push *)",
       "Bash(git remote *)",
-      "Bash(git commit -m 'feat: real КЯК amber data model + mobile optimization *)"
+      "Bash(git commit -m 'feat: real КЯК amber data model + mobile optimization *)",
+      "Bash(git commit -m 'fix: fraction filter bug + history delete + stock deduction on save *)"
     ]
   }
 }

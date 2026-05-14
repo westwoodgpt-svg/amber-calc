@@ -9,6 +9,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<Calculation | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -21,6 +22,19 @@ export default function HistoryPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  async function handleDelete(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!confirm('Удалить этот расчёт из истории?')) return
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/history/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      setCalculations(prev => prev.filter(c => c.id !== id))
+      if (selected?.id === id) setSelected(null)
+    } catch { setError('Не удалось удалить расчёт') }
+    finally { setDeletingId(null) }
+  }
 
   if (loading) {
     return (
@@ -36,7 +50,7 @@ export default function HistoryPage() {
   return (
     <>
       <h1 className="page-title">📋 История расчётов</h1>
-      {error && <div className="alert alert-error">{error}</div>}
+      {error && <div className="alert alert-error" onClick={() => setError('')} style={{ cursor: 'pointer' }}>{error} <span style={{ float: 'right' }}>✕</span></div>}
 
       {calculations.length === 0 ? (
         <div className="empty-state">
@@ -46,35 +60,56 @@ export default function HistoryPage() {
         </div>
       ) : (
         <>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-            Всего расчётов: {calculations.length}
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+            Всего: {calculations.length}
           </div>
           {calculations.map(calc => (
             <div key={calc.id} className="history-item" onClick={() => setSelected(calc)}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 15 }}>{calc.name}</div>
+                <div style={{ fontWeight: 600, marginBottom: 5, fontSize: 15 }}>{calc.name}</div>
                 <div className="history-meta">
                   <span>🎯 {calc.targetWeight.toFixed(3)} кг</span>
                   <span>✅ {calc.totalWeight.toFixed(3)} кг</span>
                   <span style={{ color: calc.overweight > 0.001 ? 'var(--red)' : 'var(--green)' }}>
-                    +{calc.overweight.toFixed(3)} кг
+                    Δ +{calc.overweight.toFixed(3)} кг
                   </span>
                   {calc.category && (
-                    <span style={{ background: 'var(--amber-light)', color: '#92400e', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>
-                      {calc.category}
-                    </span>
+                    <span className="cat-badge-sm">{calc.category}</span>
                   )}
-                  {calc.fraction && <span>{calc.fraction}</span>}
-                  {calc.allowMixing && <span style={{ background: '#dbeafe', color: '#1e40af', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>смешанные</span>}
-                  <span>🕐 {new Date(calc.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                  {calc.fraction && <span className="frac-badge" style={{ fontSize: 11, padding: '1px 6px' }}>{calc.fraction}</span>}
+                  {calc.allowMixing && <span className="mix-badge">смешанные</span>}
+                  <span>🕐 {new Date(calc.createdAt).toLocaleString('ru-RU', {
+                    day: '2-digit', month: '2-digit', year: '2-digit',
+                    hour: '2-digit', minute: '2-digit'
+                  })}</span>
                 </div>
               </div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 18, paddingLeft: 8, flexShrink: 0 }}>›</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 8, flexShrink: 0 }}>
+                <button
+                  className="btn btn-danger btn-sm"
+                  onClick={e => handleDelete(calc.id, e)}
+                  disabled={deletingId === calc.id}
+                  title="Удалить расчёт"
+                >
+                  {deletingId === calc.id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : '🗑'}
+                </button>
+                <span style={{ color: 'var(--text-muted)', fontSize: 18 }}>›</span>
+              </div>
             </div>
           ))}
         </>
       )}
-      {selected && <HistoryModal calc={selected} onClose={() => setSelected(null)} />}
+
+      {selected && (
+        <HistoryModal
+          calc={selected}
+          onClose={() => setSelected(null)}
+          onDelete={id => {
+            setCalculations(prev => prev.filter(c => c.id !== id))
+            setSelected(null)
+          }}
+        />
+      )}
     </>
   )
 }

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import ContainerTable from '@/components/ContainerTable'
 import CalculationResult from '@/components/CalculationResult'
 import type { Container, CalculationResult as Res } from '@/lib/types'
-import { CATEGORIES, FRACTIONS, CATEGORIES_WITH_FRACTION } from '@/lib/constants'
+import { CATEGORIES, FRACTIONS } from '@/lib/constants'
 
 type CalcResult = Res & { category?: string | null; fraction?: string | null; allowMixing?: boolean }
 
@@ -12,7 +12,7 @@ export default function CalculatorPage() {
   const [containers, setContainers] = useState<Container[]>([])
   const [targetWeight, setTargetWeight] = useState('')
   const [category, setCategory] = useState('фракционный')
-  const [fraction, setFraction] = useState('+8 мм')
+  const [fraction, setFraction] = useState('')
   const [allowMixing, setAllowMixing] = useState(false)
   const [result, setResult] = useState<CalcResult | null>(null)
   const [error, setError] = useState('')
@@ -37,14 +37,15 @@ export default function CalculatorPage() {
 
   useEffect(() => { loadContainers() }, [loadContainers])
 
-  // Derive available categories/fractions from actual containers
+  // Categories and fractions that actually exist in DB
   const availableCategories = [...new Set(containers.map(c => c.category))]
-    .filter(c => CATEGORIES.includes(c as never))
+    .filter(Boolean).sort()
   const availableFractions = [...new Set(
-    containers.filter(c => c.category === category && c.fraction).map(c => c.fraction!)
-  )].filter(f => FRACTIONS.includes(f as never))
-
-  const categoryHasFraction = CATEGORIES_WITH_FRACTION.includes(category as never)
+    containers
+      .filter(c => !allowMixing ? c.category === category : true)
+      .map(c => c.fraction)
+      .filter(Boolean) as string[]
+  )].sort()
 
   async function handleAdd(data: Omit<Container, 'id' | 'createdAt' | 'updatedAt'>) {
     setTableLoading(true); setError('')
@@ -89,14 +90,15 @@ export default function CalculatorPage() {
       setError('Введите корректный целевой вес'); return
     }
     if (!allowMixing && !category) {
-      setError('Выберите категорию или включите смешивание'); return
+      setError('Выберите вид сырья или включите смешивание'); return
     }
     setCalculating(true)
     try {
       const body = {
         targetWeight: tw,
         category: allowMixing ? null : category,
-        fraction: (allowMixing || !categoryHasFraction) ? null : (fraction || null),
+        // Send fraction only when a specific fraction is chosen
+        fraction: (allowMixing || !fraction) ? null : fraction,
         allowMixing,
       }
       const res = await fetch('/api/calculate', {
@@ -104,7 +106,7 @@ export default function CalculatorPage() {
       })
       const json = await res.json()
       if (!res.ok) { setError(json.error); return }
-      if (json.selectedContainers.length === 0) {
+      if (!json.selectedContainers?.length) {
         setError('Не найдено подходящих контейнеров. Проверьте склад.'); return
       }
       setResult(json)
@@ -129,16 +131,21 @@ export default function CalculatorPage() {
           overweight: result.overweight,
         }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const json = await res.json()
+        setError(json.error ?? 'Ошибка при сохранении')
+        return
+      }
       setSaved(true)
+      // Refresh stock after deduction
+      await loadContainers()
     } catch { setError('Ошибка при сохранении') }
     finally { setSaving(false) }
   }
 
   const catOptions = availableCategories.length > 0 ? availableCategories : [...CATEGORIES]
-  const fracOptions = availableFractions.length > 0 ? availableFractions : [...FRACTIONS].filter(
-    f => f !== 'без фракции' && f !== 'несортированный'
-  )
+  const fracOptions = availableFractions.length > 0 ? availableFractions :
+    [...FRACTIONS].filter(f => f !== 'без фракции' && f !== 'несортированный')
 
   return (
     <>
@@ -155,7 +162,8 @@ export default function CalculatorPage() {
 
         <div className="toggle-wrap" style={{ marginBottom: 20 }}>
           <label className="toggle">
-            <input type="checkbox" checked={allowMixing} onChange={e => { setAllowMixing(e.target.checked); setResult(null); setSaved(false) }} />
+            <input type="checkbox" checked={allowMixing}
+              onChange={e => { setAllowMixing(e.target.checked); setResult(null); setSaved(false) }} />
             <span className="toggle-slider" />
           </label>
           <span className="toggle-label">
@@ -178,19 +186,19 @@ export default function CalculatorPage() {
             <>
               <div className="form-group">
                 <label>Вид сырья</label>
-                <select value={category} onChange={e => { setCategory(e.target.value); setFraction('+8 мм'); setResult(null); setSaved(false) }}>
+                <select value={category}
+                  onChange={e => { setCategory(e.target.value); setFraction(''); setResult(null); setSaved(false) }}>
                   {catOptions.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              {categoryHasFraction && (
-                <div className="form-group">
-                  <label>Фракция <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(необязательно)</span></label>
-                  <select value={fraction} onChange={e => { setFraction(e.target.value); setResult(null); setSaved(false) }}>
-                    <option value="">Любая фракция</option>
-                    {fracOptions.map(f => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </div>
-              )}
+              <div className="form-group">
+                <label>Фракция <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(необязательно)</span></label>
+                <select value={fraction}
+                  onChange={e => { setFraction(e.target.value); setResult(null); setSaved(false) }}>
+                  <option value="">— любая —</option>
+                  {fracOptions.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
             </>
           )}
         </div>
@@ -201,12 +209,14 @@ export default function CalculatorPage() {
             onClick={handleCalculate}
             disabled={calculating || containers.length === 0}
           >
-            {calculating ? <><span className="spinner" /> Подбираю...</> : '🔢 Рассчитать подбор'}
+            {calculating
+              ? <><span className="spinner" />&nbsp;Подбираю...</>
+              : '🔢 Рассчитать подбор'}
           </button>
           {containers.length === 0 && !loading && (
-            <span style={{ marginLeft: 12, fontSize: 13, color: 'var(--text-muted)' }}>
+            <p style={{ marginTop: 8, fontSize: 13, color: 'var(--text-muted)' }}>
               Сначала добавьте позиции на склад
-            </span>
+            </p>
           )}
         </div>
       </div>
