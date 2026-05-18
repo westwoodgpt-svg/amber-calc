@@ -14,6 +14,8 @@ export default function CalculatorPage() {
   const [loading, setLoading] = useState(false)
   const [savingItems, setSavingItems] = useState(false)
   const [calculating, setCalculating] = useState(false)
+  const [companyModalOpen, setCompanyModalOpen] = useState(false)
+  const [companyName, setCompanyName] = useState('')
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -37,25 +39,29 @@ export default function CalculatorPage() {
     loadAll()
   }, [loadAll])
 
-  const sharedItemIds = useMemo(() => new Set(distribution?.items.map((row) => row.itemId) ?? []), [distribution])
+  const enabledDistributionRows = useMemo(() => (distribution?.items ?? []).filter((row) => row.enabled), [distribution])
+  const sharedItemIds = useMemo(
+    () => new Set(enabledDistributionRows.map((row) => row.itemId)),
+    [enabledDistributionRows],
+  )
   const missingDistribution = useMemo(() => items.filter((item) => !sharedItemIds.has(item.id)), [items, sharedItemIds])
   const unconfirmedDistributed = useMemo(
-    () => (distribution?.items ?? []).filter((row) => !row.item.weightConfirmed),
-    [distribution],
+    () => enabledDistributionRows.filter((row) => !row.item.weightConfirmed),
+    [enabledDistributionRows],
   )
   const invalidPackWeight = useMemo(
-    () => (distribution?.items ?? []).filter((row) => !Number.isFinite(row.item.packWeight) || row.item.packWeight <= 0),
-    [distribution],
+    () => enabledDistributionRows.filter((row) => !Number.isFinite(row.item.packWeight) || row.item.packWeight <= 0),
+    [enabledDistributionRows],
   )
   const shareSum = useMemo(
-    () => (distribution?.items ?? []).reduce((sum, row) => sum + row.share, 0),
-    [distribution],
+    () => enabledDistributionRows.reduce((sum, row) => sum + row.share, 0),
+    [enabledDistributionRows],
   )
   const isShareSumValid = Math.abs(shareSum - 1) <= 0.001
 
   const hasBlockingErrors =
     !distribution ||
-    distribution.items.length === 0 ||
+    enabledDistributionRows.length === 0 ||
     !isShareSumValid ||
     unconfirmedDistributed.length > 0 ||
     invalidPackWeight.length > 0
@@ -123,7 +129,7 @@ export default function CalculatorPage() {
     }
   }
 
-  async function calculate() {
+  async function calculateWithCompany(company: string) {
     setError('')
     setResult(null)
 
@@ -138,12 +144,17 @@ export default function CalculatorPage() {
       return
     }
 
+    if (!company.trim()) {
+      setError('Введите название компании')
+      return
+    }
+
     setCalculating(true)
     try {
       const res = await fetch('/api/calculation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ totalWeight: parsed }),
+        body: JSON.stringify({ totalWeight: parsed, companyName: company.trim() }),
       })
       const json = await res.json()
       if (!res.ok) {
@@ -151,12 +162,22 @@ export default function CalculatorPage() {
         return
       }
       setResult(json)
+      setCompanyModalOpen(false)
+      setCompanyName('')
       await loadAll()
     } catch {
       setError('Ошибка при расчёте')
     } finally {
       setCalculating(false)
     }
+  }
+
+  function onCalculateClick() {
+    if (hasBlockingErrors) {
+      setError('Исправьте ошибки в распределении и позициях перед расчётом')
+      return
+    }
+    setCompanyModalOpen(true)
   }
 
   return (
@@ -196,15 +217,17 @@ export default function CalculatorPage() {
             Некорректный packWeight у позиций: {invalidPackWeight.map((row) => row.item.name).join(', ')}.
           </div>
         )}
-
-        <div style={{ marginTop: 16 }}>
-          <button className="btn btn-primary btn-lg" onClick={calculate} disabled={loading || calculating || items.length === 0 || hasBlockingErrors}>
-            {calculating ? <><span className="spinner" />&nbsp;Считаю...</> : 'Рассчитать и сохранить'}
-          </button>
-        </div>
       </div>
 
-      {result && <CalculationResult result={result} calculationId={result.calculationId} createdAt={result.createdAt} warnings={result.warnings} />}
+      {result && (
+        <CalculationResult
+          result={result}
+          companyName={result.companyName}
+          calculationId={result.calculationId}
+          createdAt={result.createdAt}
+          warnings={result.warnings}
+        />
+      )}
 
       <ContainerTable
         items={items}
@@ -214,6 +237,38 @@ export default function CalculatorPage() {
         onDelete={deleteItem}
         loading={savingItems}
       />
+
+      <div className="sticky-action-bar">
+        <button className="btn btn-primary btn-lg" onClick={onCalculateClick} disabled={loading || calculating || items.length === 0 || hasBlockingErrors}>
+          {calculating ? <><span className="spinner" />&nbsp;Считаю...</> : 'Рассчитать'}
+        </button>
+      </div>
+
+      {companyModalOpen && (
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setCompanyModalOpen(false) }}>
+          <div className="modal">
+            <div className="modal-title">
+              <span>Введите название компании</span>
+              <button className="btn btn-ghost btn-sm" onClick={() => setCompanyModalOpen(false)}>×</button>
+            </div>
+            <div className="form-group">
+              <label>Компания</label>
+              <input
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="Например: ООО Балтия"
+                autoFocus
+              />
+            </div>
+            <div className="form-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-primary" onClick={() => calculateWithCompany(companyName)} disabled={calculating || !companyName.trim()}>
+                {calculating ? <span className="spinner" /> : 'Рассчитать'}
+              </button>
+              <button className="btn btn-ghost" onClick={() => setCompanyModalOpen(false)}>Отмена</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

@@ -5,6 +5,7 @@ export interface Item {
   name: string
   type: ItemType
   packWeight: number
+  defaultPacks: number
   weightConfirmed: boolean
   createdAt: string
   updatedAt: string
@@ -13,6 +14,7 @@ export interface Item {
 export interface DistributionItemShare {
   itemId: string
   share: number
+  enabled?: boolean
 }
 
 export interface DistributionItemView {
@@ -20,6 +22,7 @@ export interface DistributionItemView {
   configId: string
   itemId: string
   share: number
+  enabled: boolean
   item: Item
 }
 
@@ -64,12 +67,14 @@ export interface CalculationWarning {
 export interface CalculateResponse extends CalculationResult {
   calculationId: string
   createdAt: string
+  companyName: string
   warnings: CalculationWarning[]
 }
 
 export interface HistoryCalculation {
   id: string
   status: CalculationStatus
+  companyName: string
   totalWeight: number
   totalActual: number
   totalDelta: number

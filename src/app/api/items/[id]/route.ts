@@ -23,6 +23,11 @@ export async function PUT(request: Request, { params }: Params) {
       return NextResponse.json({ error: 'Вес упаковки должен быть больше 0' }, { status: 400 })
     }
 
+    const rawDefaultPacks = Number(body.defaultPacks)
+    if (!Number.isInteger(rawDefaultPacks) || rawDefaultPacks < 0) {
+      return NextResponse.json({ error: 'defaultPacks должен быть целым числом >= 0' }, { status: 400 })
+    }
+
     const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : defaultName(type)
     const weightConfirmed = Boolean(body.weightConfirmed)
 
@@ -32,6 +37,7 @@ export async function PUT(request: Request, { params }: Params) {
         name,
         type,
         packWeight,
+        defaultPacks: rawDefaultPacks,
         weightConfirmed,
       },
     })

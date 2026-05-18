@@ -597,3 +597,43 @@ tbody tr:hover { background: var(--bg-card2); }
   .modal-overlay { align-items: center; padding: 20px; }
   .modal { border-radius: var(--radius); max-width: 680px; }
 }
+
+.table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-container table {
+  min-width: 860px;
+}
+
+.sticky-action-bar {
+  position: sticky;
+  bottom: calc(12px + var(--safe-bottom));
+  display: flex;
+  justify-content: flex-end;
+  z-index: 120;
+  pointer-events: none;
+  margin-top: 8px;
+}
+
+.sticky-action-bar .btn {
+  pointer-events: auto;
+}
+
+@media (max-width: 768px) {
+  .sticky-action-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 12px calc(10px + var(--safe-bottom));
+    background: linear-gradient(to top, rgba(15,23,42,0.96), rgba(15,23,42,0.74));
+    justify-content: center;
+  }
+
+  .sticky-action-bar .btn {
+    width: 100%;
+    max-width: 560px;
+  }
+}

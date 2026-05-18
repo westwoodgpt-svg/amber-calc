@@ -7,11 +7,14 @@ CREATE TABLE IF NOT EXISTS "Item" (
   "name" TEXT NOT NULL,
   "type" "ItemType" NOT NULL,
   "packWeight" DOUBLE PRECISION NOT NULL,
+  "defaultPacks" INTEGER NOT NULL DEFAULT 0,
   "weightConfirmed" BOOLEAN NOT NULL DEFAULT false,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "Item_pkey" PRIMARY KEY ("id")
 );
+
+ALTER TABLE "Item" ADD COLUMN IF NOT EXISTS "defaultPacks" INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS "DistributionConfig" (
   "id" TEXT NOT NULL,
@@ -26,14 +29,18 @@ CREATE TABLE IF NOT EXISTS "DistributionItem" (
   "configId" TEXT NOT NULL,
   "itemId" TEXT NOT NULL,
   "share" DOUBLE PRECISION NOT NULL,
+  "enabled" BOOLEAN NOT NULL DEFAULT true,
   CONSTRAINT "DistributionItem_pkey" PRIMARY KEY ("id")
 );
+
+ALTER TABLE "DistributionItem" ADD COLUMN IF NOT EXISTS "enabled" BOOLEAN NOT NULL DEFAULT true;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "DistributionItem_configId_itemId_key" ON "DistributionItem"("configId", "itemId");
 
 CREATE TABLE IF NOT EXISTS "Calculation" (
   "id" TEXT NOT NULL,
   "status" "CalculationStatus" NOT NULL DEFAULT 'COMPLETED',
+  "companyName" TEXT NOT NULL DEFAULT '',
   "totalWeight" DOUBLE PRECISION NOT NULL,
   "totalActual" DOUBLE PRECISION NOT NULL,
   "totalDelta" DOUBLE PRECISION NOT NULL,
@@ -43,6 +50,7 @@ CREATE TABLE IF NOT EXISTS "Calculation" (
 );
 
 ALTER TABLE "Calculation" ADD COLUMN IF NOT EXISTS "status" "CalculationStatus" NOT NULL DEFAULT 'COMPLETED';
+ALTER TABLE "Calculation" ADD COLUMN IF NOT EXISTS "companyName" TEXT NOT NULL DEFAULT '';
 ALTER TABLE "Calculation" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
 
 CREATE TABLE IF NOT EXISTS "CalculationItem" (

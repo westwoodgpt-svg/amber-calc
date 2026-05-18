@@ -7,6 +7,11 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const totalWeight = Number(body.totalWeight)
+    const companyName = typeof body.companyName === 'string' ? body.companyName.trim() : ''
+
+    if (!companyName) {
+      return NextResponse.json({ error: 'Введите название компании' }, { status: 400 })
+    }
 
     if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
       return NextResponse.json({ error: 'Общий вес должен быть положительным числом' }, { status: 400 })
@@ -30,24 +35,30 @@ export async function POST(request: Request) {
     }
 
     const warnings: CalculationWarning[] = []
-    const distribution = config.items.map((row) => ({ itemId: row.itemId, share: row.share }))
+    const enabledDistributionRows = config.items.filter((row) => row.enabled)
+
+    if (enabledDistributionRows.length === 0) {
+      return NextResponse.json({ error: 'Нет включённых позиций в распределении' }, { status: 400 })
+    }
+
+    const distribution = enabledDistributionRows.map((row) => ({ itemId: row.itemId, share: row.share }))
     const { valid, sum } = validateDistribution(distribution, 0.001)
     if (!valid) {
       return NextResponse.json({ error: `Сумма долей должна быть равна 1 ±0.001 (сейчас ${sum})` }, { status: 400 })
     }
 
-    const distributionItemIds = new Set(distribution.map((row) => row.itemId))
+    const enabledIds = new Set(enabledDistributionRows.map((row) => row.itemId))
     for (const item of allItems) {
-      if (!distributionItemIds.has(item.id)) {
+      if (!enabledIds.has(item.id)) {
         warnings.push({
           code: 'MISSING_DISTRIBUTION',
           itemId: item.id,
-          message: `Позиция "${item.name}" не добавлена в распределение и исключена из расчёта`,
+          message: `Позиция "${item.name}" не включена в распределение и исключена из расчёта`,
         })
       }
     }
 
-    const activeRows = config.items.filter((row) => {
+    const activeRows = enabledDistributionRows.filter((row) => {
       if (row.item.packWeight <= 0 || !Number.isFinite(row.item.packWeight)) {
         warnings.push({
           code: 'INVALID_PACK_WEIGHT',
@@ -77,16 +88,6 @@ export async function POST(request: Request) {
     }
 
     const activeItemIds = new Set(activeRows.map((row) => row.itemId))
-    for (const row of config.items) {
-      if (!activeItemIds.has(row.itemId)) {
-        warnings.push({
-          code: 'EXCLUDED_ITEM',
-          itemId: row.itemId,
-          message: `Позиция "${row.item.name}" исключена из расчёта`,
-        })
-      }
-    }
-
     const activeDistribution = distribution.filter((row) => activeItemIds.has(row.itemId))
 
     const balanceRows = await prisma.calculationHistory.groupBy({
@@ -117,6 +118,7 @@ export async function POST(request: Request) {
       const calc = await tx.calculation.create({
         data: {
           status: 'COMPLETED',
+          companyName,
           totalWeight: result.totals.totalRequested,
           totalActual: result.totals.totalActual,
           totalDelta: result.totals.totalDelta,
@@ -151,6 +153,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       calculationId: calculation.id,
       createdAt: calculation.createdAt,
+      companyName,
       warnings,
       ...result,
     })

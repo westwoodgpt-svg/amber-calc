@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState } from 'react'
 import type { Item } from '@/lib/types'
@@ -18,6 +18,7 @@ interface FormState {
   name: string
   type: ItemType
   packWeight: string
+  defaultPacks: string
   weightConfirmed: boolean
 }
 
@@ -31,6 +32,7 @@ function useItemForm(initial?: Item) {
     name: initial?.name ?? defaultName('fraction'),
     type: initial?.type ?? 'fraction',
     packWeight: initial ? String(initial.packWeight) : String(TYPE_DEFAULT_PACK_WEIGHT.fraction),
+    defaultPacks: initial ? String(initial.defaultPacks) : '0',
     weightConfirmed: initial?.weightConfirmed ?? false,
   })
 
@@ -54,13 +56,16 @@ function useItemForm(initial?: Item) {
 
 function parsePayload(form: FormState): Omit<Item, 'id' | 'createdAt' | 'updatedAt'> | null {
   const packWeight = Number(form.packWeight)
+  const defaultPacks = Number(form.defaultPacks)
   if (!form.name.trim()) return null
   if (!Number.isFinite(packWeight) || packWeight <= 0) return null
+  if (!Number.isInteger(defaultPacks) || defaultPacks < 0) return null
 
   return {
     name: form.name.trim(),
     type: form.type,
     packWeight,
+    defaultPacks,
     weightConfirmed: Boolean(form.weightConfirmed),
   }
 }
@@ -73,7 +78,7 @@ function AddForm({ loading, onAdd }: { loading: boolean; onAdd: Props['onAdd'] }
     e.preventDefault()
     const payload = parsePayload({ ...form, weightConfirmed: false })
     if (!payload) {
-      setError('Проверьте наименование и вес упаковки')
+      setError('Проверьте наименование, вес упаковки и defaultPacks')
       return
     }
     await onAdd({ ...payload, weightConfirmed: false })
@@ -81,6 +86,7 @@ function AddForm({ loading, onAdd }: { loading: boolean; onAdd: Props['onAdd'] }
       name: defaultName(form.type),
       type: form.type,
       packWeight: String(TYPE_DEFAULT_PACK_WEIGHT[form.type]),
+      defaultPacks: '0',
       weightConfirmed: false,
     })
     setError('')
@@ -107,11 +113,17 @@ function AddForm({ loading, onAdd }: { loading: boolean; onAdd: Props['onAdd'] }
           <input type="number" min="0.001" step="0.001" value={form.packWeight} onChange={(e) => update('packWeight', e.target.value)} />
         </div>
       </div>
+      <div className="form-grid-3" style={{ marginTop: 8 }}>
+        <div className="form-group">
+          <label>defaultPacks</label>
+          <input type="number" min="0" step="1" value={form.defaultPacks} onChange={(e) => update('defaultPacks', e.target.value)} />
+        </div>
+      </div>
       <div className="form-actions">
         <button className="btn btn-primary" disabled={loading}>{loading ? <span className="spinner" /> : 'Добавить позицию'}</button>
       </div>
       <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-        После создания позиция не участвует в расчёте, пока не добавлена в распределение.
+        После создания позиция не участвует в расчёте, пока не включена в распределение.
       </div>
     </form>
   )
@@ -124,7 +136,7 @@ function EditModal({ item, loading, onUpdate, onClose }: { item: Item; loading: 
   async function save() {
     const payload = parsePayload(form)
     if (!payload) {
-      setError('Проверьте наименование и вес упаковки')
+      setError('Проверьте наименование, вес упаковки и defaultPacks')
       return
     }
     await onUpdate(item.id, payload)
@@ -155,6 +167,12 @@ function EditModal({ item, loading, onUpdate, onClose }: { item: Item; loading: 
             <input type="number" min="0.001" step="0.001" value={form.packWeight} onChange={(e) => update('packWeight', e.target.value)} />
           </div>
         </div>
+        <div className="form-grid-3" style={{ marginTop: 8 }}>
+          <div className="form-group">
+            <label>defaultPacks</label>
+            <input type="number" min="0" step="1" value={form.defaultPacks} onChange={(e) => update('defaultPacks', e.target.value)} />
+          </div>
+        </div>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
           <input type="checkbox" checked={form.weightConfirmed} onChange={(e) => update('weightConfirmed', e.target.checked)} />
           Вес подтверждён
@@ -182,13 +200,14 @@ export default function ContainerTable({ items, sharedItemIds, onAdd, onUpdate, 
           <div>Добавьте первую позицию.</div>
         </div>
       ) : (
-        <div className="table-wrap">
+        <div className="table-wrap table-container">
           <table>
             <thead>
               <tr>
                 <th>Наименование</th>
                 <th>Тип</th>
                 <th className="text-right">Упаковка (кг)</th>
+                <th className="text-right">defaultPacks</th>
                 <th>Подтверждён</th>
                 <th>В распределении</th>
                 <th></th>
@@ -200,6 +219,7 @@ export default function ContainerTable({ items, sharedItemIds, onAdd, onUpdate, 
                   <td style={{ fontWeight: 500 }}>{item.name}</td>
                   <td><TypeBadge type={item.type} /></td>
                   <td className="text-right font-mono">{item.packWeight.toFixed(3)}</td>
+                  <td className="text-right font-mono">{item.defaultPacks}</td>
                   <td style={{ color: item.weightConfirmed ? 'var(--green)' : 'var(--red)' }}>{item.weightConfirmed ? 'Да' : 'Нет'}</td>
                   <td style={{ color: sharedItemIds.has(item.id) ? 'var(--green)' : 'var(--red)' }}>
                     {sharedItemIds.has(item.id) ? 'Да' : 'Нет'}

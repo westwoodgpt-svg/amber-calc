@@ -29,12 +29,15 @@ export async function POST(request: Request) {
     const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : defaultName(type)
     const rawPack = Number(body.packWeight)
     const packWeight = Number.isFinite(rawPack) && rawPack > 0 ? rawPack : TYPE_DEFAULT_PACK_WEIGHT[type]
+    const rawDefaultPacks = Number(body.defaultPacks)
+    const defaultPacks = Number.isInteger(rawDefaultPacks) && rawDefaultPacks >= 0 ? rawDefaultPacks : 0
 
     const item = await prisma.item.create({
       data: {
         name,
         type,
         packWeight,
+        defaultPacks,
         weightConfirmed: false,
       },
     })

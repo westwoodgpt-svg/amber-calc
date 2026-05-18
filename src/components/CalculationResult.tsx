@@ -6,17 +6,22 @@ import { exportShipmentToExcel } from '@/lib/exportExcel'
 
 interface Props {
   result: Res
+  companyName: string
   calculationId?: string
   createdAt?: string
   warnings?: CalculationWarning[]
 }
 
-export default function CalculationResult({ result, calculationId, createdAt, warnings = [] }: Props) {
+export default function CalculationResult({ result, companyName, calculationId, createdAt, warnings = [] }: Props) {
   const { items, totals } = result
 
   return (
     <div className="result-card">
       <div className="card-title" style={{ marginBottom: 14 }}>Результат расчёта</div>
+
+      <div style={{ marginBottom: 10, color: 'var(--text-muted)' }}>
+        Компания: <strong style={{ color: 'var(--text)' }}>{companyName}</strong>
+      </div>
 
       {warnings.length > 0 && (
         <div className="alert alert-info" style={{ marginBottom: 12 }}>
@@ -45,7 +50,7 @@ export default function CalculationResult({ result, calculationId, createdAt, wa
         </div>
       </div>
 
-      <div className="table-wrap">
+      <div className="table-wrap table-container">
         <table>
           <thead>
             <tr>
@@ -84,7 +89,7 @@ export default function CalculationResult({ result, calculationId, createdAt, wa
       </div>
 
       <div className="form-actions" style={{ marginTop: 14 }}>
-        <button className="btn btn-primary" onClick={() => exportShipmentToExcel(result, createdAt ? new Date(createdAt) : new Date())}>
+        <button className="btn btn-primary" onClick={() => exportShipmentToExcel(result, companyName, createdAt ? new Date(createdAt) : new Date())}>
           Экспорт в Excel
         </button>
       </div>

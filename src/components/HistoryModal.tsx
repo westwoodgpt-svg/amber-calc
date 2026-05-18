@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import type { HistoryCalculation } from '@/lib/types'
@@ -33,7 +33,7 @@ export default function HistoryModal({ calc, onClose, onDelete }: Props) {
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal">
         <div className="modal-title">
-          <span>Расчёт {new Date(calc.createdAt).toLocaleString('ru-RU')}</span>
+          <span>{calc.companyName || '—'} — {new Date(calc.createdAt).toLocaleString('ru-RU')}</span>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn btn-ghost btn-sm" onClick={() => exportCalculationHistoryToExcel(calc)}>Excel</button>
             <button className="btn btn-danger btn-sm" onClick={handleDelete} disabled={deleting}>{deleting ? <span className="spinner" style={{ width: 14, height: 14 }} /> : 'Удалить'}</button>
@@ -82,3 +82,4 @@ export default function HistoryModal({ calc, onClose, onDelete }: Props) {
     </div>
   )
 }
+

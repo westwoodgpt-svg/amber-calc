@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useCallback, useEffect, useState } from 'react'
 import HistoryModal from '@/components/HistoryModal'
@@ -68,9 +68,7 @@ export default function HistoryPage() {
         calculations.map((calc) => (
           <div key={calc.id} className="history-item" onClick={() => setSelected(calc)}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, marginBottom: 5, fontSize: 15 }}>
-                {new Date(calc.createdAt).toLocaleString('ru-RU')}
-              </div>
+              <div style={{ fontWeight: 600, marginBottom: 5, fontSize: 15 }}>{calc.companyName || '—'}</div>\n              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>{new Date(calc.createdAt).toLocaleString('ru-RU')}</div>
               <div className="history-meta">
                 <span>Запрошено: {calc.totalWeight.toFixed(2)} кг</span>
                 <span>Факт: {calc.totalActual.toFixed(2)} кг</span>
@@ -103,3 +101,4 @@ export default function HistoryPage() {
     </>
   )
 }
+

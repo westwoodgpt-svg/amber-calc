@@ -1,12 +1,16 @@
 import * as XLSX from 'xlsx'
 import type { CalculationResult, HistoryCalculation } from './types'
-import { TYPE_EXPORT_LABELS } from './constants'
+import { TYPE_EXPORT_LABELS, sanitizeFilenamePart } from './constants'
 
 function round2(value: number): number {
   return Number(value.toFixed(2))
 }
 
-export function exportShipmentToExcel(result: CalculationResult, calculatedAt = new Date()) {
+export function exportShipmentToExcel(
+  result: CalculationResult,
+  companyName: string,
+  calculatedAt = new Date(),
+) {
   const wb = XLSX.utils.book_new()
 
   const shipmentRows: (string | number)[][] = [
@@ -38,7 +42,7 @@ export function exportShipmentToExcel(result: CalculationResult, calculatedAt = 
   }
 
   shipmentRows.push([
-    'ИТОГО:',
+    'ИТОГО',
     '',
     '',
     round2(result.totals.totalCalcWeight),
@@ -65,17 +69,20 @@ export function exportShipmentToExcel(result: CalculationResult, calculatedAt = 
 
   const summaryRows: (string | number)[][] = [
     ['Показатель', 'Значение'],
+    ['Компания', companyName || '—'],
     ['Общий запрошенный вес', round2(result.totals.totalRequested)],
     ['Фактический вес', round2(result.totals.totalActual)],
     ['Общее отклонение', round2(result.totals.totalDelta)],
     ['Дата расчёта', calculatedAt.toISOString()],
   ]
+
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows)
-  wsSummary['!cols'] = [{ wch: 28 }, { wch: 20 }]
+  wsSummary['!cols'] = [{ wch: 28 }, { wch: 24 }]
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Сводка')
 
   const date = calculatedAt.toISOString().slice(0, 19).replace(/[:T]/g, '-')
-  XLSX.writeFile(wb, `shipment_${date}.xlsx`)
+  const safeCompany = sanitizeFilenamePart(companyName || 'company')
+  XLSX.writeFile(wb, `shipment_${safeCompany}_${date}.xlsx`)
 }
 
 export function exportCalculationHistoryToExcel(calc: HistoryCalculation) {
@@ -101,6 +108,5 @@ export function exportCalculationHistoryToExcel(calc: HistoryCalculation) {
     },
   }
 
-  exportShipmentToExcel(result, new Date(calc.createdAt))
+  exportShipmentToExcel(result, calc.companyName, new Date(calc.createdAt))
 }
-
