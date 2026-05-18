@@ -1,27 +1,41 @@
-export interface Container {
+import type { StoneType } from './constants'
+
+export interface Item {
   id: string
   name: string
-  category: string
-  fraction: string | null
-  weight: number
-  quantity: number
+  type: StoneType
+  share: number
+  packWeight: number
+  weightConfirmed: boolean
+  balance: number
   createdAt: string
   updatedAt: string
 }
 
+export interface ShipmentItemResult {
+  id: string
+  name: string
+  type: StoneType
+  share: number
+  packWeight: number
+  prevBalance: number
+  calcWeight: number
+  adjustedWeight: number
+  packs: number
+  factWeight: number
+  delta: number
+  newBalance: number
+}
+
+export interface ShipmentTotals {
+  totalRequested: number
+  totalActual: number
+  totalDelta: number
+}
+
 export interface CalculationResult {
-  selectedContainers: {
-    id: string
-    name: string
-    category: string
-    fraction: string | null
-    weight: number
-    quantityUsed: number
-  }[]
-  totalWeight: number
-  targetWeight: number
-  overweight: number
-  feasible: boolean
+  items: ShipmentItemResult[]
+  totals: ShipmentTotals
 }
 
 export interface Calculation {

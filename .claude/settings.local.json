@@ -11,7 +11,10 @@
       "Bash(git remote *)",
       "Bash(git commit -m 'feat: real КЯК amber data model + mobile optimization *)",
       "Bash(git commit -m 'fix: fraction filter bug + history delete + stock deduction on save *)",
-      "Bash(git commit -m 'feat: visual stock update feedback on save *)"
+      "Bash(git commit -m 'feat: visual stock update feedback on save *)",
+      "Bash(npm list *)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

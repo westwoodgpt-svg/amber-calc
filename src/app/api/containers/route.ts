@@ -1,41 +1,61 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { CATEGORIES, FRACTIONS, autoName } from '@/lib/constants'
+import { STONE_TYPES, TYPE_DEFAULT_PACK_WEIGHT, type StoneType, defaultName } from '@/lib/constants'
+
+function toPositiveNumber(value: unknown): number | null {
+  const num = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(num) && num > 0 ? num : null
+}
+
+function toShare(value: unknown): number | null {
+  const num = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(num) && num >= 0 ? num : null
+}
 
 export async function GET() {
   try {
-    const containers = await prisma.container.findMany({ orderBy: { createdAt: 'asc' } })
-    return NextResponse.json(containers)
+    const items = await prisma.container.findMany({ orderBy: { createdAt: 'asc' } })
+    return NextResponse.json(items)
   } catch {
-    return NextResponse.json({ error: 'Не удалось загрузить контейнеры' }, { status: 500 })
+    return NextResponse.json({ error: 'Не удалось загрузить позиции' }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { category, fraction, weight, quantity } = body
+    const type = body.type as StoneType
 
-    if (!category || !CATEGORIES.includes(category)) {
-      return NextResponse.json({ error: 'Недопустимая категория' }, { status: 400 })
-    }
-    if (fraction && !FRACTIONS.includes(fraction)) {
-      return NextResponse.json({ error: 'Недопустимая фракция' }, { status: 400 })
-    }
-    if (typeof weight !== 'number' || weight <= 0) {
-      return NextResponse.json({ error: 'Вес должен быть положительным числом' }, { status: 400 })
-    }
-    if (typeof quantity !== 'number' || quantity < 1 || !Number.isInteger(quantity)) {
-      return NextResponse.json({ error: 'Количество должно быть целым положительным числом' }, { status: 400 })
+    if (!STONE_TYPES.includes(type)) {
+      return NextResponse.json({ error: 'Недопустимый тип позиции' }, { status: 400 })
     }
 
-    const name = body.name?.trim() || autoName(category, fraction ?? null)
+    const share = toShare(body.share)
+    if (share === null) {
+      return NextResponse.json({ error: 'Доля должна быть числом >= 0' }, { status: 400 })
+    }
 
-    const container = await prisma.container.create({
-      data: { name, category, fraction: fraction ?? null, weight, quantity },
+    const packWeight = toPositiveNumber(body.packWeight) ?? TYPE_DEFAULT_PACK_WEIGHT[type]
+    const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : defaultName(type)
+
+    const item = await prisma.container.create({
+      data: {
+        name,
+        type,
+        share,
+        packWeight,
+        weightConfirmed: false,
+        balance: 0,
+        // Legacy fields
+        category: type,
+        fraction: null,
+        weight: packWeight,
+        quantity: 1,
+      },
     })
-    return NextResponse.json(container, { status: 201 })
+
+    return NextResponse.json(item, { status: 201 })
   } catch {
-    return NextResponse.json({ error: 'Не удалось создать контейнер' }, { status: 500 })
+    return NextResponse.json({ error: 'Не удалось создать позицию' }, { status: 500 })
   }
 }

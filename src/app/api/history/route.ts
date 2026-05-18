@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import type { CalculationResult } from '@/lib/types'
 
 export async function GET() {
   try {
@@ -13,40 +15,41 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { name, targetWeight, category, fraction, allowMixing, result, totalWeight, overweight } = body
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    const result = body.result as CalculationResult | undefined
 
-    if (!name || !targetWeight || !result) {
-      return NextResponse.json({ error: 'Обязательные поля: name, targetWeight, result' }, { status: 400 })
+    if (!name || !result || !Array.isArray(result.items) || !result.totals) {
+      return NextResponse.json({ error: 'Обязательные поля: name, result' }, { status: 400 })
     }
 
-    const selectedContainers: Array<{ id: string; quantityUsed: number }> =
-      result?.selectedContainers ?? []
+    const targetWeight = Number(result.totals.totalRequested)
+    const totalWeight = Number(result.totals.totalActual)
+    const overweight = Number(result.totals.totalDelta)
 
-    // Atomic: save calculation + deduct stock
+    if (![targetWeight, totalWeight, overweight].every(Number.isFinite)) {
+      return NextResponse.json({ error: 'Некорректные итоговые значения расчёта' }, { status: 400 })
+    }
+
     const calculation = await prisma.$transaction(async (tx) => {
       const calc = await tx.calculation.create({
         data: {
-          name: String(name),
-          targetWeight: Number(targetWeight),
-          category: category ? String(category) : null,
-          fraction: fraction ? String(fraction) : null,
-          allowMixing: Boolean(allowMixing),
-          result,
-          totalWeight: Number(totalWeight),
-          overweight: Number(overweight),
+          name,
+          targetWeight,
+          category: null,
+          fraction: null,
+          allowMixing: false,
+          result: result as unknown as Prisma.InputJsonValue,
+          totalWeight,
+          overweight,
         },
       })
 
-      // Deduct used quantities from stock
-      for (const item of selectedContainers) {
-        const container = await tx.container.findUnique({ where: { id: item.id } })
-        if (container) {
-          const newQty = Math.max(0, container.quantity - item.quantityUsed)
-          await tx.container.update({
-            where: { id: item.id },
-            data: { quantity: newQty },
-          })
-        }
+      for (const row of result.items) {
+        if (!row?.id) continue
+        await tx.container.update({
+          where: { id: row.id },
+          data: { balance: Number(row.newBalance) || 0 },
+        })
       }
 
       return calc

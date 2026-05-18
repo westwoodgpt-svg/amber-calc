@@ -1,90 +1,102 @@
 import * as XLSX from 'xlsx'
 import type { Calculation } from './types'
+import { TYPE_LABELS } from './constants'
 
 export function exportHistoryToExcel(calculations: Calculation[]) {
   const wb = XLSX.utils.book_new()
 
-  // ── Sheet 1: Summary ────────────────────────────────────────────────────────
   const summaryRows: (string | number)[][] = [
-    ['Название', 'Дата', 'Целевой вес (кг)', 'Итого (кг)', 'Перевес (кг)', 'Вид сырья', 'Фракция', 'Смешивание', 'Контейнеров'],
+    ['Название', 'Дата', 'Запрошено (кг)', 'Факт (кг)', 'Δ (кг)', 'Упаковок'],
   ]
 
   for (const calc of calculations) {
     const date = new Date(calc.createdAt).toLocaleString('ru-RU', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     })
+
+    const rows = Array.isArray((calc.result as { items?: unknown })?.items)
+      ? (calc.result as { items: Array<{ packs: number }> }).items
+      : []
+
+    const packs = rows.reduce((sum, row) => sum + row.packs, 0)
+
     summaryRows.push([
       calc.name,
       date,
       Number(calc.targetWeight.toFixed(3)),
       Number(calc.totalWeight.toFixed(3)),
       Number(calc.overweight.toFixed(3)),
-      calc.category ?? '—',
-      calc.fraction ?? '—',
-      calc.allowMixing ? 'да' : 'нет',
-      calc.result.selectedContainers.reduce((s, c) => s + c.quantityUsed, 0),
+      packs,
     ])
   }
 
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows)
-
-  // Column widths for summary
   wsSummary['!cols'] = [
-    { wch: 30 }, // Название
-    { wch: 18 }, // Дата
-    { wch: 18 }, // Целевой вес
-    { wch: 12 }, // Итого
-    { wch: 14 }, // Перевес
-    { wch: 22 }, // Вид
-    { wch: 14 }, // Фракция
-    { wch: 14 }, // Смешивание
-    { wch: 14 }, // Контейнеров
+    { wch: 36 },
+    { wch: 20 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 12 },
   ]
 
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Сводка')
 
-  // ── Sheet 2: Detail (one row per container per calculation) ─────────────────
   const detailRows: (string | number)[][] = [
-    ['Расчёт', 'Дата', 'Наименование', 'Вид сырья', 'Фракция', 'Вес контейнера (кг)', 'Количество', 'Сумма (кг)'],
+    ['Расчёт', 'Дата', 'Позиция', 'Тип', 'Доля', 'Теория (кг)', 'С учётом баланса (кг)', 'Упаковок', 'Факт (кг)', 'Δ (кг)', 'Новый баланс (кг)'],
   ]
 
   for (const calc of calculations) {
     const date = new Date(calc.createdAt).toLocaleString('ru-RU', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     })
-    for (const c of calc.result.selectedContainers) {
+
+    const rows = Array.isArray((calc.result as { items?: unknown })?.items)
+      ? (calc.result as { items: Array<{ name: string; type: 'fraction' | 'sieve'; share: number; calcWeight: number; adjustedWeight: number; packs: number; factWeight: number; delta: number; newBalance: number }> }).items
+      : []
+
+    for (const row of rows) {
       detailRows.push([
         calc.name,
         date,
-        c.name,
-        c.category,
-        c.fraction ?? '—',
-        Number(c.weight.toFixed(3)),
-        c.quantityUsed,
-        Number((c.weight * c.quantityUsed).toFixed(3)),
+        row.name,
+        TYPE_LABELS[row.type],
+        Number(row.share.toFixed(4)),
+        Number(row.calcWeight.toFixed(3)),
+        Number(row.adjustedWeight.toFixed(3)),
+        row.packs,
+        Number(row.factWeight.toFixed(3)),
+        Number(row.delta.toFixed(3)),
+        Number(row.newBalance.toFixed(3)),
       ])
     }
   }
 
   const wsDetail = XLSX.utils.aoa_to_sheet(detailRows)
-
   wsDetail['!cols'] = [
-    { wch: 30 }, // Расчёт
-    { wch: 18 }, // Дата
-    { wch: 30 }, // Наименование
-    { wch: 22 }, // Вид
-    { wch: 14 }, // Фракция
-    { wch: 22 }, // Вес
-    { wch: 12 }, // Кол-во
-    { wch: 12 }, // Сумма
+    { wch: 32 },
+    { wch: 20 },
+    { wch: 28 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 14 },
+    { wch: 20 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 10 },
+    { wch: 16 },
   ]
 
   XLSX.utils.book_append_sheet(wb, wsDetail, 'Детализация')
 
-  // ── Download ─────────────────────────────────────────────────────────────────
-  const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    .replace(/\./g, '-')
-  XLSX.writeFile(wb, `Янтарь_история_${date}.xlsx`)
+  const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '-')
+  XLSX.writeFile(wb, `История_распределений_${date}.xlsx`)
 }

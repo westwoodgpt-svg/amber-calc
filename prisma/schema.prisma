@@ -9,12 +9,20 @@ datasource db {
 }
 
 model Container {
-  id        String   @id @default(cuid())
-  name      String
-  category  String
+  id              String   @id @default(cuid())
+  name            String
+  type            String   @default("fraction")
+  share           Float    @default(0)
+  packWeight      Float    @default(10)
+  weightConfirmed Boolean  @default(false)
+  balance         Float    @default(0)
+
+  // Legacy fields kept for backward DB compatibility
+  category  String  @default("fraction")
   fraction  String?
-  weight    Float
-  quantity  Int
+  weight    Float   @default(0)
+  quantity  Int     @default(1)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
