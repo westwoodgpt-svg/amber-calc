@@ -1,87 +1,81 @@
-# Amber Calc — Калькулятор подбора контейнеров
+# Amber Calc — Distribution Calculator
 
-Production-ready веб-приложение для подбора контейнеров с янтарём по целевому весу.
+Production-ready Next.js app for stone shipment distribution by shares with package rounding and cumulative balance compensation.
 
-## Стек
+## Stack
 
-- **Frontend + Backend**: Next.js 14 (App Router)
-- **БД**: PostgreSQL через Prisma ORM
-- **Хостинг**: Vercel
-- **База данных**: Neon или Supabase
+- Frontend + API: Next.js 14 (App Router)
+- DB: PostgreSQL + Prisma ORM
+- Deploy: Vercel
 
-## Алгоритм
+## Environment
 
-Задача сводится к **ограниченному knapsack** (bounded subset sum):
-- Цель: `total_weight >= target_weight`
-- Приоритет 1: минимальный перевес
-- Приоритет 2: минимальное количество контейнеров
-
-## Локальный запуск
-
-### 1. Клонируйте репозиторий
-
-```bash
-git clone https://github.com/YOUR_USERNAME/amber-calc.git
-cd amber-calc
-npm install
-```
-
-### 2. Настройте базу данных
-
-Создайте БД на [Neon](https://neon.tech) или [Supabase](https://supabase.com) и скопируйте строку подключения.
+Create `.env.local` from `.env.example`:
 
 ```bash
 cp .env.example .env.local
-# Отредактируйте .env.local, добавив DATABASE_URL и DIRECT_URL
 ```
 
-### 3. Выполните миграции
+Required variable:
 
-```bash
-npm run db:push
+```env
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB"
 ```
 
-### 4. Запустите dev-сервер
+Startup guard is enabled: if `DATABASE_URL` is missing, the server fails fast with an explicit error.
+
+## Local Run
 
 ```bash
+npm install
+npx prisma generate
+npx prisma migrate deploy
 npm run dev
 ```
 
-Откройте [http://localhost:3000](http://localhost:3000).
+## Architecture
 
-## Деплой на Vercel
+- `Item`: reference catalog (`name`, `type`, `packWeight`, `weightConfirmed`)
+- `DistributionConfig` + `DistributionItem`: share configuration separated from catalog
+- `Calculation` + `CalculationItem`: persisted calculation output
+- `CalculationHistory`: delta ledger for balance
 
-1. Запушьте код на GitHub
-2. Импортируйте репозиторий в [Vercel](https://vercel.com)
-3. Добавьте переменные окружения:
-   - `DATABASE_URL` — строка подключения с пулингом (для Neon: `?pgbouncer=true&connect_timeout=15`)
-   - `DIRECT_URL` — прямая строка подключения (без пулинга)
-4. Vercel автоматически выполнит `prisma generate && next build`
+Balance is computed as:
 
-## API Endpoints
-
-| Метод | URL | Описание |
-|-------|-----|----------|
-| GET | /api/containers | Список контейнеров |
-| POST | /api/containers | Создать контейнер |
-| PUT | /api/containers/:id | Обновить контейнер |
-| DELETE | /api/containers/:id | Удалить контейнер |
-| POST | /api/calculate | Выполнить расчёт |
-| GET | /api/history | История расчётов |
-| POST | /api/history | Сохранить расчёт |
-| GET | /api/history/:id | Получить расчёт |
-
-## Структура проекта
-
+```text
+balance[itemId] = sum(CalculationHistory.delta)
 ```
-src/
-├── app/
-│   ├── page.tsx          # Страница калькулятора
-│   ├── history/page.tsx  # История расчётов
-│   └── api/              # API routes
-├── components/           # React компоненты
-└── lib/
-    ├── prisma.ts         # Prisma client
-    ├── knapsack.ts       # Алгоритм подбора
-    └── types.ts          # TypeScript типы
-```
+
+Only non-deleted `COMPLETED` calculations are included.
+
+## API
+
+- `GET/POST /api/items`
+- `PUT/DELETE /api/items/:id`
+- `GET/PUT /api/distribution`
+- `POST /api/calculation`
+- `GET /api/calculation/:id`
+- `GET /api/history`
+- `GET/DELETE /api/history/:id`
+
+## Validation Rules
+
+Before calculation:
+
+- share sum must be `1 ± 0.001`
+- `packWeight > 0`
+- items without `weightConfirmed` are excluded with warnings
+- items missing in distribution are excluded with warnings
+
+## Excel Export
+
+Workbook is import-safe for 1C / BI / SQL (flat tables, no merged cells, no decorative styles):
+
+- Sheet `Отгрузка` with strict columns and numeric values (2 decimals as numbers)
+- Sheet `Сводка` with `Показатель | Значение`
+- Final `ИТОГО` row in shipment sheet with sums for `calcWeight`, `factWeight`, `delta`
+
+## Deploy (Vercel)
+
+- Push to `main` triggers auto-deploy.
+- Ensure `DATABASE_URL` exists in Vercel project environment variables.

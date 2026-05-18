@@ -3,43 +3,90 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-model Container {
+model Item {
   id              String   @id @default(cuid())
   name            String
-  type            String   @default("fraction")
-  share           Float    @default(0)
-  packWeight      Float    @default(10)
+  type            ItemType
+  packWeight      Float
   weightConfirmed Boolean  @default(false)
-  balance         Float    @default(0)
 
-  // Legacy fields kept for backward DB compatibility
-  category  String  @default("fraction")
-  fraction  String?
-  weight    Float   @default(0)
-  quantity  Int     @default(1)
+  distributions   DistributionItem[]
+  histories       CalculationHistory[]
+  calculationRows CalculationItem[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum ItemType {
+  fraction
+  sieve
+}
+
+model DistributionConfig {
+  id        String   @id @default(cuid())
+  name      String
+  isActive  Boolean  @default(true)
+
+  items     DistributionItem[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+}
 
-  @@map("containers")
+model DistributionItem {
+  id        String   @id @default(cuid())
+  configId  String
+  itemId    String
+  share     Float
+
+  config    DistributionConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  item      Item               @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([configId, itemId])
 }
 
 model Calculation {
-  id           String   @id @default(cuid())
-  name         String
-  targetWeight Float
-  category     String?
-  fraction     String?
-  allowMixing  Boolean  @default(false)
-  result       Json
-  totalWeight  Float
-  overweight   Float
-  createdAt    DateTime @default(now())
+  id            String            @id @default(cuid())
+  status        CalculationStatus @default(COMPLETED)
+  totalWeight   Float
+  totalActual   Float
+  totalDelta    Float
+  deletedAt     DateTime?
+  createdAt     DateTime          @default(now())
 
-  @@map("calculations")
+  items         CalculationItem[]
+  histories     CalculationHistory[]
+}
+
+enum CalculationStatus {
+  COMPLETED
+}
+
+model CalculationItem {
+  id              String   @id @default(cuid())
+  calculationId   String
+  itemId          String
+  calcWeight      Float
+  adjustedWeight  Float
+  packs           Int
+  factWeight      Float
+  delta           Float
+
+  calculation     Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  item            Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+}
+
+model CalculationHistory {
+  id            String      @id @default(cuid())
+  calculationId String
+  itemId        String
+  delta         Float
+  createdAt     DateTime    @default(now())
+
+  calculation   Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  item          Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
 }

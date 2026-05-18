@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -14,6 +14,9 @@ export default function Navbar() {
       <div className="navbar-links">
         <Link href="/" className={`nav-link ${path === '/' ? 'active' : ''}`}>
           Калькулятор
+        </Link>
+        <Link href="/distribution" className={`nav-link ${path === '/distribution' ? 'active' : ''}`}>
+          Распределение
         </Link>
         <Link href="/history" className={`nav-link ${path === '/history' ? 'active' : ''}`}>
           История

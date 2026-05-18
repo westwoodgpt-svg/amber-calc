@@ -27,21 +27,8 @@ export async function GET(_request: Request, { params }: Params) {
 
     return NextResponse.json(calculation)
   } catch (error) {
-    console.error('GET /api/history/:id failed', error)
+    console.error('GET /api/calculation/:id failed', error)
     return NextResponse.json({ error: 'Ошибка при получении расчёта' }, { status: 500 })
-  }
-}
-
-export async function DELETE(_request: Request, { params }: Params) {
-  try {
-    await prisma.calculation.update({
-      where: { id: params.id },
-      data: { deletedAt: new Date() },
-    })
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('DELETE /api/history/:id failed', error)
-    return NextResponse.json({ error: 'Не удалось удалить расчёт' }, { status: 500 })
   }
 }
 

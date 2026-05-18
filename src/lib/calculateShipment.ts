@@ -1,13 +1,15 @@
-import type { Item, CalculationResult, ShipmentItemResult } from './types'
+import type { ItemType } from '@prisma/client'
+import type { CalculationResult, DistributionItemShare, ShipmentItemResult } from './types'
 
-interface CalculateInput {
-  totalWeight: number
-  items: Item[]
-  balance?: Record<string, number>
+interface CalcItem {
+  id: string
+  name: string
+  type: ItemType
+  packWeight: number
 }
 
-function round3(value: number): number {
-  return Number(value.toFixed(3))
+function round2(value: number): number {
+  return Number(value.toFixed(2))
 }
 
 function safeNumber(value: unknown, fallback = 0): number {
@@ -15,16 +17,25 @@ function safeNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(num) ? num : fallback
 }
 
-export function calculateShipment({ totalWeight, items, balance = {} }: CalculateInput): CalculationResult {
+export function calculateShipment(
+  totalWeight: number,
+  items: CalcItem[],
+  distribution: DistributionItemShare[],
+  balance: Record<string, number>,
+): CalculationResult {
   const safeTotalWeight = safeNumber(totalWeight)
   if (safeTotalWeight <= 0) {
     throw new Error('Общий вес должен быть положительным числом')
   }
 
+  const itemById = new Map(items.map((item) => [item.id, item]))
   const results: ShipmentItemResult[] = []
 
-  for (const item of items) {
-    const share = safeNumber(item.share)
+  for (const dist of distribution) {
+    const item = itemById.get(dist.itemId)
+    if (!item) continue
+
+    const share = safeNumber(dist.share)
     const packWeight = safeNumber(item.packWeight)
     if (share < 0) {
       throw new Error(`Доля позиции "${item.name}" не может быть отрицательной`)
@@ -34,7 +45,7 @@ export function calculateShipment({ totalWeight, items, balance = {} }: Calculat
     }
 
     const calcWeight = safeTotalWeight * share
-    const prevBalance = safeNumber(balance[item.id], safeNumber(item.balance))
+    const prevBalance = safeNumber(balance[item.id])
     const adjustedWeight = calcWeight - prevBalance
 
     const packs = adjustedWeight <= 0 ? 0 : Math.ceil(adjustedWeight / packWeight)
@@ -43,35 +54,36 @@ export function calculateShipment({ totalWeight, items, balance = {} }: Calculat
     const newBalance = delta
 
     results.push({
-      id: item.id,
+      itemId: item.id,
       name: item.name,
       type: item.type,
       share,
       packWeight,
-      prevBalance: round3(prevBalance),
-      calcWeight: round3(calcWeight),
-      adjustedWeight: round3(adjustedWeight),
+      calcWeight: round2(calcWeight),
+      adjustedWeight: round2(adjustedWeight),
       packs,
-      factWeight: round3(factWeight),
-      delta: round3(delta),
-      newBalance: round3(newBalance),
+      factWeight: round2(factWeight),
+      delta: round2(delta),
+      newBalance: round2(newBalance),
     })
   }
 
+  const totalCalcWeight = results.reduce((sum, row) => sum + row.calcWeight, 0)
   const totalActual = results.reduce((sum, row) => sum + row.factWeight, 0)
   const totalDelta = results.reduce((sum, row) => sum + row.delta, 0)
 
   return {
     items: results,
     totals: {
-      totalRequested: round3(safeTotalWeight),
-      totalActual: round3(totalActual),
-      totalDelta: round3(totalDelta),
+      totalRequested: round2(safeTotalWeight),
+      totalCalcWeight: round2(totalCalcWeight),
+      totalActual: round2(totalActual),
+      totalDelta: round2(totalDelta),
     },
   }
 }
 
-export function validateShares(items: Pick<Item, 'name' | 'share'>[], tolerance = 0.001): { valid: boolean; sum: number } {
-  const sum = items.reduce((acc, item) => acc + safeNumber(item.share), 0)
-  return { valid: Math.abs(sum - 1) <= tolerance, sum: round3(sum) }
+export function validateDistribution(distribution: DistributionItemShare[], tolerance = 0.0001): { valid: boolean; sum: number } {
+  const sum = distribution.reduce((acc, row) => acc + safeNumber(row.share), 0)
+  return { valid: Math.abs(sum - 1) <= tolerance, sum: round2(sum) }
 }

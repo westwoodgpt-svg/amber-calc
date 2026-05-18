@@ -1,102 +1,106 @@
 import * as XLSX from 'xlsx'
-import type { Calculation } from './types'
-import { TYPE_LABELS } from './constants'
+import type { CalculationResult, HistoryCalculation } from './types'
+import { TYPE_EXPORT_LABELS } from './constants'
 
-export function exportHistoryToExcel(calculations: Calculation[]) {
+function round2(value: number): number {
+  return Number(value.toFixed(2))
+}
+
+export function exportShipmentToExcel(result: CalculationResult, calculatedAt = new Date()) {
   const wb = XLSX.utils.book_new()
 
-  const summaryRows: (string | number)[][] = [
-    ['Название', 'Дата', 'Запрошено (кг)', 'Факт (кг)', 'Δ (кг)', 'Упаковок'],
+  const shipmentRows: (string | number)[][] = [
+    [
+      'Наименование',
+      'Тип',
+      'Доля (%)',
+      'Расчётный вес (кг)',
+      'Скорректированный вес (кг)',
+      'Упаковка (кг)',
+      'Кол-во упаковок',
+      'Фактический вес (кг)',
+      'Отклонение (кг)',
+    ],
   ]
 
-  for (const calc of calculations) {
-    const date = new Date(calc.createdAt).toLocaleString('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-
-    const rows = Array.isArray((calc.result as { items?: unknown })?.items)
-      ? (calc.result as { items: Array<{ packs: number }> }).items
-      : []
-
-    const packs = rows.reduce((sum, row) => sum + row.packs, 0)
-
-    summaryRows.push([
-      calc.name,
-      date,
-      Number(calc.targetWeight.toFixed(3)),
-      Number(calc.totalWeight.toFixed(3)),
-      Number(calc.overweight.toFixed(3)),
-      packs,
+  for (const row of result.items) {
+    shipmentRows.push([
+      row.name,
+      TYPE_EXPORT_LABELS[row.type],
+      round2(row.share * 100),
+      round2(row.calcWeight),
+      round2(row.adjustedWeight),
+      round2(row.packWeight),
+      row.packs,
+      round2(row.factWeight),
+      round2(row.delta),
     ])
   }
 
-  const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows)
-  wsSummary['!cols'] = [
-    { wch: 36 },
-    { wch: 20 },
+  shipmentRows.push([
+    'ИТОГО:',
+    '',
+    '',
+    round2(result.totals.totalCalcWeight),
+    '',
+    '',
+    '',
+    round2(result.totals.totalActual),
+    round2(result.totals.totalDelta),
+  ])
+
+  const wsShipment = XLSX.utils.aoa_to_sheet(shipmentRows)
+  wsShipment['!cols'] = [
+    { wch: 28 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 18 },
+    { wch: 24 },
+    { wch: 14 },
+    { wch: 16 },
     { wch: 18 },
     { wch: 14 },
-    { wch: 14 },
-    { wch: 12 },
   ]
+  XLSX.utils.book_append_sheet(wb, wsShipment, 'Отгрузка')
 
+  const summaryRows: (string | number)[][] = [
+    ['Показатель', 'Значение'],
+    ['Общий запрошенный вес', round2(result.totals.totalRequested)],
+    ['Фактический вес', round2(result.totals.totalActual)],
+    ['Общее отклонение', round2(result.totals.totalDelta)],
+    ['Дата расчёта', calculatedAt.toISOString()],
+  ]
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows)
+  wsSummary['!cols'] = [{ wch: 28 }, { wch: 20 }]
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Сводка')
 
-  const detailRows: (string | number)[][] = [
-    ['Расчёт', 'Дата', 'Позиция', 'Тип', 'Доля', 'Теория (кг)', 'С учётом баланса (кг)', 'Упаковок', 'Факт (кг)', 'Δ (кг)', 'Новый баланс (кг)'],
-  ]
+  const date = calculatedAt.toISOString().slice(0, 19).replace(/[:T]/g, '-')
+  XLSX.writeFile(wb, `shipment_${date}.xlsx`)
+}
 
-  for (const calc of calculations) {
-    const date = new Date(calc.createdAt).toLocaleString('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-
-    const rows = Array.isArray((calc.result as { items?: unknown })?.items)
-      ? (calc.result as { items: Array<{ name: string; type: 'fraction' | 'sieve'; share: number; calcWeight: number; adjustedWeight: number; packs: number; factWeight: number; delta: number; newBalance: number }> }).items
-      : []
-
-    for (const row of rows) {
-      detailRows.push([
-        calc.name,
-        date,
-        row.name,
-        TYPE_LABELS[row.type],
-        Number(row.share.toFixed(4)),
-        Number(row.calcWeight.toFixed(3)),
-        Number(row.adjustedWeight.toFixed(3)),
-        row.packs,
-        Number(row.factWeight.toFixed(3)),
-        Number(row.delta.toFixed(3)),
-        Number(row.newBalance.toFixed(3)),
-      ])
-    }
+export function exportCalculationHistoryToExcel(calc: HistoryCalculation) {
+  const result: CalculationResult = {
+    items: calc.items.map((row) => ({
+      itemId: row.itemId,
+      name: row.item.name,
+      type: row.item.type,
+      share: calc.totalWeight > 0 ? row.calcWeight / calc.totalWeight : 0,
+      packWeight: row.item.packWeight,
+      calcWeight: row.calcWeight,
+      adjustedWeight: row.adjustedWeight,
+      packs: row.packs,
+      factWeight: row.factWeight,
+      delta: row.delta,
+      newBalance: row.delta,
+    })),
+    totals: {
+      totalRequested: calc.totalWeight,
+      totalCalcWeight: calc.items.reduce((sum, row) => sum + row.calcWeight, 0),
+      totalActual: calc.totalActual,
+      totalDelta: calc.totalDelta,
+    },
   }
 
-  const wsDetail = XLSX.utils.aoa_to_sheet(detailRows)
-  wsDetail['!cols'] = [
-    { wch: 32 },
-    { wch: 20 },
-    { wch: 28 },
-    { wch: 14 },
-    { wch: 10 },
-    { wch: 14 },
-    { wch: 20 },
-    { wch: 10 },
-    { wch: 12 },
-    { wch: 10 },
-    { wch: 16 },
-  ]
-
-  XLSX.utils.book_append_sheet(wb, wsDetail, 'Детализация')
-
-  const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '-')
-  XLSX.writeFile(wb, `История_распределений_${date}.xlsx`)
+  exportShipmentToExcel(result, new Date(calc.createdAt))
 }
+

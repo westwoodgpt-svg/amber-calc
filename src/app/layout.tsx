@@ -1,10 +1,10 @@
-import type { Metadata } from 'next'
+﻿import type { Metadata } from 'next'
 import './globals.css'
 import Navbar from '@/components/Navbar'
 
 export const metadata: Metadata = {
-  title: 'Amber Calc — Калькулятор контейнеров',
-  description: 'Подбор контейнеров с янтарём по целевому весу',
+  title: 'Amber Calc — Калькулятор распределения',
+  description: 'Распределение отгрузки по долям с учётом упаковки и накопительного баланса',
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
