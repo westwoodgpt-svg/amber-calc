@@ -1,4 +1,4 @@
-# Amber Calc — Distribution Calculator
+﻿# Amber Calc вЂ” Distribution Calculator
 
 Production-ready Next.js app for stone shipment distribution by shares with package rounding and cumulative balance compensation.
 
@@ -62,7 +62,7 @@ Only non-deleted `COMPLETED` calculations are included.
 
 Before calculation:
 
-- share sum must be `1 ± 0.001`
+- share sum must be `1 В± 0.001`
 - `packWeight > 0`
 - items without `weightConfirmed` are excluded with warnings
 - items missing in distribution are excluded with warnings
@@ -71,11 +71,12 @@ Before calculation:
 
 Workbook is import-safe for 1C / BI / SQL (flat tables, no merged cells, no decorative styles):
 
-- Sheet `Отгрузка` with strict columns and numeric values (2 decimals as numbers)
-- Sheet `Сводка` with `Показатель | Значение`
-- Final `ИТОГО` row in shipment sheet with sums for `calcWeight`, `factWeight`, `delta`
+- Sheet `РћС‚РіСЂСѓР·РєР°` with strict columns and numeric values (2 decimals as numbers)
+- Sheet `РЎРІРѕРґРєР°` with `РџРѕРєР°Р·Р°С‚РµР»СЊ | Р—РЅР°С‡РµРЅРёРµ`
+- Final `РРўРћР“Рћ` row in shipment sheet with sums for `calcWeight`, `factWeight`, `delta`
 
 ## Deploy (Vercel)
 
 - Push to `main` triggers auto-deploy.
 - Ensure `DATABASE_URL` exists in Vercel project environment variables.
+
