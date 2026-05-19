@@ -91,6 +91,8 @@ export async function POST(request: Request) {
     const activeItemIds = new Set(activeRows.map((row) => row.itemId))
     const activeDistribution = distribution.filter((row) => activeItemIds.has(row.itemId))
 
+    // Balance is per-company: only this company's prior orders affect their allocation.
+    // This ensures Company A's pack-rounding surpluses don't penalise Company B.
     const balanceRows = await prisma.calculationHistory.groupBy({
       by: ['itemId'],
       where: {
@@ -98,6 +100,7 @@ export async function POST(request: Request) {
         calculation: {
           status: 'COMPLETED',
           deletedAt: null,
+          companyName,
         },
       },
       _sum: { delta: true },
@@ -153,10 +156,16 @@ export async function POST(request: Request) {
       return calc
     })
 
+    // Count prior non-deleted calculations for this company (excluding the one just created)
+    const priorCount = await prisma.calculation.count({
+      where: { companyName, status: 'COMPLETED', deletedAt: null, id: { not: calculation.id } },
+    })
+
     return NextResponse.json({
       calculationId: calculation.id,
       createdAt: calculation.createdAt,
       companyName,
+      priorOrderCount: priorCount,
       warnings,
       ...result,
     })

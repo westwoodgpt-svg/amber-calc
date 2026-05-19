@@ -17,15 +17,21 @@ export default function CalculatorPage() {
   const [calculating, setCalculating] = useState(false)
   const [companyModalOpen, setCompanyModalOpen] = useState(false)
   const [companyName, setCompanyName] = useState('')
+  const [knownCompanies, setKnownCompanies] = useState<string[]>([])
 
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [itemsRes, distRes] = await Promise.all([fetch('/api/items'), fetch('/api/distribution')])
+      const [itemsRes, distRes, companiesRes] = await Promise.all([
+        fetch('/api/items'),
+        fetch('/api/distribution'),
+        fetch('/api/companies'),
+      ])
       if (!itemsRes.ok || !distRes.ok) throw new Error()
       const [itemsJson, distJson] = await Promise.all([itemsRes.json(), distRes.json()])
       setItems(itemsJson)
       setDistribution(distJson)
+      if (companiesRes.ok) setKnownCompanies(await companiesRes.json())
     } catch {
       setError('Не удалось загрузить данные')
     } finally {
@@ -119,6 +125,8 @@ export default function CalculatorPage() {
       setResult(json)
       setCompanyModalOpen(false)
       setCompanyName('')
+      // refresh known companies so the new name appears in autocomplete
+      fetch('/api/companies').then((r) => r.ok ? r.json() : []).then(setKnownCompanies)
     } catch { setError('Ошибка при расчёте') }
     finally { setCalculating(false) }
   }
@@ -215,6 +223,7 @@ export default function CalculatorPage() {
           createdAt={result.createdAt}
           warnings={result.warnings}
           allowPartialPack={allowPartialPack}
+          priorOrderCount={result.priorOrderCount}
         />
       )}
 
@@ -252,12 +261,28 @@ export default function CalculatorPage() {
             <div className="form-group">
               <label>Компания / клиент</label>
               <input
+                list="company-suggestions"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="Например: ООО Балтия"
                 onKeyDown={(e) => e.key === 'Enter' && companyName.trim() && runCalculation(companyName)}
                 autoFocus
               />
+              {knownCompanies.length > 0 && (
+                <datalist id="company-suggestions">
+                  {knownCompanies.map((name) => <option key={name} value={name} />)}
+                </datalist>
+              )}
+              {companyName.trim() && knownCompanies.includes(companyName.trim()) && (
+                <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+                  ↩ Баланс по «{companyName.trim()}» будет учтён из предыдущих расчётов этой компании
+                </div>
+              )}
+              {companyName.trim() && !knownCompanies.includes(companyName.trim()) && (
+                <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+                  Новая компания — баланс начнётся с нуля
+                </div>
+              )}
             </div>
             <div className="form-actions" style={{ marginTop: 16 }}>
               <button

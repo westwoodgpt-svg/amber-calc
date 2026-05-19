@@ -11,20 +11,30 @@ interface Props {
   createdAt?: string
   warnings?: CalculationWarning[]
   allowPartialPack?: boolean
+  priorOrderCount?: number
 }
 
-export default function CalculationResult({ result, companyName, calculationId, createdAt, warnings = [], allowPartialPack = false }: Props) {
+export default function CalculationResult({ result, companyName, calculationId, createdAt, warnings = [], allowPartialPack = false, priorOrderCount = 0 }: Props) {
   const { items, totals } = result
 
   return (
     <div className="result-card">
       <div className="card-title" style={{ marginBottom: 14 }}>Результат расчёта</div>
 
-      <div style={{ marginBottom: 10, color: 'var(--text-muted)' }}>
-        Компания: <strong style={{ color: 'var(--text)' }}>{companyName}</strong>
+      <div style={{ marginBottom: 10, color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+        <span>Компания: <strong style={{ color: 'var(--text)' }}>{companyName}</strong></span>
         {allowPartialPack && (
-          <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--amber)', background: 'var(--amber-dim, #ff990022)', borderRadius: 4, padding: '2px 7px' }}>
+          <span style={{ fontSize: 12, color: 'var(--amber)', background: 'var(--amber-dim, #ff990022)', borderRadius: 4, padding: '2px 7px' }}>
             открытый мешок
+          </span>
+        )}
+        {priorOrderCount > 0 ? (
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-secondary, #ffffff11)', borderRadius: 4, padding: '2px 7px' }}>
+            расчёт №{priorOrderCount + 1} • баланс учтён из {priorOrderCount} предыдущ.
+          </span>
+        ) : (
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-secondary, #ffffff11)', borderRadius: 4, padding: '2px 7px' }}>
+            первый расчёт • баланс с нуля
           </span>
         )}
       </div>

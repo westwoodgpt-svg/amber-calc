@@ -69,6 +69,7 @@ export interface CalculateResponse extends CalculationResult {
   calculationId: string
   createdAt: string
   companyName: string
+  priorOrderCount: number
   warnings: CalculationWarning[]
 }
 
