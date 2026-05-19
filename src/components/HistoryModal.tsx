@@ -7,15 +7,19 @@ import { exportCalculationHistoryToExcel } from '@/lib/exportExcel'
 
 interface Props {
   calc: HistoryCalculation
+  isLatest?: boolean
   onClose: () => void
   onDelete?: (id: string) => void
 }
 
-export default function HistoryModal({ calc, onClose, onDelete }: Props) {
+export default function HistoryModal({ calc, isLatest = true, onClose, onDelete }: Props) {
   const [deleting, setDeleting] = useState(false)
 
   async function handleDelete() {
-    if (!confirm('Удалить этот расчёт из истории?')) return
+    const message = isLatest
+      ? 'Удалить этот расчёт из истории?'
+      : '⚠️ Этот расчёт не последний в истории.\n\nУдаление может нарушить баланс последующих расчётов — все отгрузки, сделанные после, будут пересчитаны некорректно.\n\nВсё равно удалить?'
+    if (!confirm(message)) return
     setDeleting(true)
     try {
       const res = await fetch(`/api/history/${calc.id}`, { method: 'DELETE' })
@@ -33,7 +37,14 @@ export default function HistoryModal({ calc, onClose, onDelete }: Props) {
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal">
         <div className="modal-title">
-          <span>{calc.companyName || '—'} — {new Date(calc.createdAt).toLocaleString('ru-RU')}</span>
+          <span>
+            {calc.companyName || '—'} — {new Date(calc.createdAt).toLocaleString('ru-RU')}
+            {calc.allowPartialPack && (
+              <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--amber)', background: 'var(--amber-dim, #ff990022)', borderRadius: 4, padding: '1px 6px' }}>
+                открытый мешок
+              </span>
+            )}
+          </span>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn btn-ghost btn-sm" onClick={() => exportCalculationHistoryToExcel(calc)}>Excel</button>
             <button className="btn btn-danger btn-sm" onClick={handleDelete} disabled={deleting}>{deleting ? <span className="spinner" style={{ width: 14, height: 14 }} /> : 'Удалить'}</button>

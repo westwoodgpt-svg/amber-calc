@@ -52,14 +52,15 @@ model DistributionItem {
 }
 
 model Calculation {
-  id            String            @id @default(cuid())
-  status        CalculationStatus @default(COMPLETED)
-  companyName   String            @default("")
-  totalWeight   Float
-  totalActual   Float
-  totalDelta    Float
-  deletedAt     DateTime?
-  createdAt     DateTime          @default(now())
+  id               String            @id @default(cuid())
+  status           CalculationStatus @default(COMPLETED)
+  companyName      String            @default("")
+  totalWeight      Float
+  totalActual      Float
+  totalDelta       Float
+  allowPartialPack Boolean           @default(false)
+  deletedAt        DateTime?
+  createdAt        DateTime          @default(now())
 
   items         CalculationItem[]
   histories     CalculationHistory[]

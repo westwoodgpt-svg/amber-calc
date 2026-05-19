@@ -30,7 +30,11 @@ export default function HistoryPage() {
 
   async function handleDelete(id: string, e: React.MouseEvent) {
     e.stopPropagation()
-    if (!confirm('Удалить этот расчёт из истории?')) return
+    const isLatest = calculations.length === 0 || calculations[0].id === id
+    const message = isLatest
+      ? 'Удалить этот расчёт из истории?'
+      : '⚠️ Этот расчёт не последний в истории.\n\nУдаление может нарушить баланс последующих расчётов — все отгрузки, сделанные после, будут пересчитаны некорректно.\n\nВсё равно удалить?'
+    if (!confirm(message)) return
     setDeletingId(id)
     try {
       const res = await fetch(`/api/history/${id}`, { method: 'DELETE' })
@@ -68,7 +72,15 @@ export default function HistoryPage() {
         calculations.map((calc) => (
           <div key={calc.id} className="history-item" onClick={() => setSelected(calc)}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, marginBottom: 5, fontSize: 15 }}>{calc.companyName || '—'}</div>\n              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>{new Date(calc.createdAt).toLocaleString('ru-RU')}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                <span style={{ fontWeight: 600, fontSize: 15 }}>{calc.companyName || '—'}</span>
+                {calc.allowPartialPack && (
+                  <span style={{ fontSize: 11, color: 'var(--amber)', background: 'var(--amber-dim, #ff990022)', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>
+                    открытый мешок
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>{new Date(calc.createdAt).toLocaleString('ru-RU')}</div>
               <div className="history-meta">
                 <span>Запрошено: {calc.totalWeight.toFixed(2)} кг</span>
                 <span>Факт: {calc.totalActual.toFixed(2)} кг</span>
@@ -91,6 +103,7 @@ export default function HistoryPage() {
       {selected && (
         <HistoryModal
           calc={selected}
+          isLatest={calculations.length === 0 || calculations[0].id === selected.id}
           onClose={() => setSelected(null)}
           onDelete={(id) => {
             setCalculations((prev) => prev.filter((calc) => calc.id !== id))

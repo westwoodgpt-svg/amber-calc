@@ -124,6 +124,7 @@ export async function POST(request: Request) {
           totalWeight: result.totals.totalRequested,
           totalActual: result.totals.totalActual,
           totalDelta: result.totals.totalDelta,
+          allowPartialPack,
         },
       })
 

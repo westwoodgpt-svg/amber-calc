@@ -79,6 +79,7 @@ export interface HistoryCalculation {
   totalWeight: number
   totalActual: number
   totalDelta: number
+  allowPartialPack: boolean
   deletedAt: string | null
   createdAt: string
   items: Array<{
