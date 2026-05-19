@@ -21,6 +21,9 @@ export default function Navbar() {
         <Link href="/history" className={`nav-link ${path === '/history' ? 'active' : ''}`}>
           История
         </Link>
+        <Link href="/help" className={`nav-link ${path === '/help' ? 'active' : ''}`}>
+          Инструкция
+        </Link>
       </div>
     </nav>
   )
