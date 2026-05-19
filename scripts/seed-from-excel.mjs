@@ -146,24 +146,21 @@ async function main() {
 
     const calcItems = []
     let totalActual = 0
-    let totalDelta = 0
 
     for (let i = 0; i < createdItems.length; i++) {
       const item = createdItems[i]
-      const share = item.ves / TOTAL_LOT
-      const calcWeight = round2(totalWeight * share)
       const factWeight = factWeights[i]
-      const adjustedWeight = calcWeight  // no prior balance
       const packs = factWeight > 0 ? Math.ceil(factWeight / item.packWeight) : 0
-      const delta = round2(factWeight - calcWeight)
+      // delta = 0 for historical imports: history is display-only,
+      // does NOT affect the running balance for future calculations.
+      const delta = 0
 
       totalActual += factWeight
-      totalDelta += delta
 
       calcItems.push({
         itemId: item.id,
-        calcWeight,
-        adjustedWeight,
+        calcWeight: factWeight,   // record what was actually shipped
+        adjustedWeight: factWeight,
         packs,
         factWeight,
         delta,
@@ -176,7 +173,7 @@ async function main() {
         companyName: company.name,
         totalWeight: round2(totalWeight),
         totalActual: round2(totalActual),
-        totalDelta: round2(totalDelta),
+        totalDelta: 0,  // balance-neutral import
       },
     })
 
