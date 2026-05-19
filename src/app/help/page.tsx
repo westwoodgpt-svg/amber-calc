@@ -251,55 +251,55 @@ export default function HelpPage() {
               Позиция участвует в расчёте только если её вес <strong>подтверждён</strong>.
             </Term>
 
-            <Term term="Вес упаковки (packWeight)">
+            <Term term="Вес упаковки">
               Вес одной физической единицы товара — мешка, коробки, биг-бэга — в килограммах.
               Например: 500 кг (биг-бэг несортированного) или 25 кг (коробка фракционного).
               Именно на это значение округляется каждый расчёт.
             </Term>
 
-            <Term term="Доля (share)">
+            <Term term="Доля">
               Процент от общего веса отгрузки, который должна занимать данная позиция.
               Сумма долей всех <em>включённых</em> позиций в распределении должна равняться ровно <strong>100%</strong>.
               Доли хранятся в базе в виде десятичных дробей (0 … 1), но отображаются в процентах.
             </Term>
 
-            <Term term="Расчётный вес (calcWeight)">
+            <Term term="Расчётный вес">
               Идеальный вес позиции для данной отгрузки:
               <span style={{ display: 'block', background: 'var(--bg)', borderRadius: 6, padding: '6px 10px', margin: '6px 0', fontFamily: 'monospace', color: 'var(--amber)' }}>
-                calcWeight = totalWeight × share
+                Расч.вес = ОбщийВес × Доля
               </span>
               Это «целевое» значение до учёта упаковки и баланса.
             </Term>
 
-            <Term term="Скорректированный вес (adjustedWeight)">
+            <Term term="Скорректированный вес">
               Расчётный вес минус накопленный баланс с прошлых отгрузок:
               <span style={{ display: 'block', background: 'var(--bg)', borderRadius: 6, padding: '6px 10px', margin: '6px 0', fontFamily: 'monospace', color: 'var(--amber)' }}>
-                adjustedWeight = calcWeight − balance
+                Скорр.вес = Расч.вес − Баланс
               </span>
-              Если в прошлый раз было отгружено <em>больше</em> нормы (balance &gt; 0),
+              Если в прошлый раз было отгружено <em>больше</em> нормы (баланс &gt; 0),
               скорректированный вес уменьшается — система «возвращает долг».
             </Term>
 
-            <Term term="Количество упаковок (packs)">
+            <Term term="Количество упаковок">
               Число целых мешков/коробок. Всегда округляется <strong>вверх</strong>:
               <span style={{ display: 'block', background: 'var(--bg)', borderRadius: 6, padding: '6px 10px', margin: '6px 0', fontFamily: 'monospace', color: 'var(--amber)' }}>
-                packs = ⌈ adjustedWeight / packWeight ⌉
+                Упаковок = ⌈ Скорр.вес / Вес.уп. ⌉
               </span>
               Исключение — режим «открытый мешок»: там последняя упаковка может быть неполной.
             </Term>
 
-            <Term term="Фактический вес (factWeight)">
+            <Term term="Фактический вес">
               Сколько килограмм реально отгружается:
               <span style={{ display: 'block', background: 'var(--bg)', borderRadius: 6, padding: '6px 10px', margin: '6px 0', fontFamily: 'monospace', color: 'var(--amber)' }}>
-                factWeight = packs × packWeight&nbsp;&nbsp;&nbsp;(стандартный режим)<br />
-                factWeight = adjustedWeight&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(режим «открытый мешок»)
+                Факт.вес = Упаковок × Вес.уп.&nbsp;&nbsp;&nbsp;(стандартный режим)<br />
+                Факт.вес = Скорр.вес&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(режим «открытый мешок»)
               </span>
             </Term>
 
-            <Term term="Отклонение / Дельта (delta)">
+            <Term term="Отклонение / Дельта">
               Разница между фактической отгрузкой и расчётным весом:
               <span style={{ display: 'block', background: 'var(--bg)', borderRadius: 6, padding: '6px 10px', margin: '6px 0', fontFamily: 'monospace', color: 'var(--amber)' }}>
-                delta = factWeight − calcWeight
+                Δ = Факт.вес − Расч.вес
               </span>
               <span style={{ color: 'var(--red)' }}>Положительная дельта</span> — отгружено больше нормы
               (переплата, будет вычтена из следующей отгрузки).{' '}
@@ -307,12 +307,12 @@ export default function HelpPage() {
               (долг, будет добавлен к следующей).
             </Term>
 
-            <Term term="Накопительный баланс (balance)">
+            <Term term="Накопительный баланс">
               Сумма дельт всех предыдущих расчётов <strong>данной компании</strong> для данной позиции.
               Баланс привязан к компании — переплата одной фирмы не влияет на расчёты другой.
               Система извлекает его автоматически из истории:
               <span style={{ display: 'block', background: 'var(--bg)', borderRadius: 6, padding: '6px 10px', margin: '6px 0', fontFamily: 'monospace', color: 'var(--amber)' }}>
-                balance = Σ delta (по расчётам этой компании, для данной позиции)
+                Баланс = Σ Δ (по расчётам этой компании, для данной позиции)
               </span>
               Именно баланс обеспечивает <em>точное</em> долгосрочное соблюдение долей для каждой компании:
               даже если каждый отдельный расчёт округляется до целых мешков,
@@ -322,7 +322,7 @@ export default function HelpPage() {
             <Term term="Режим «Открыть последний мешок»">
               Специальный режим, при котором последняя упаковка может быть частичной —
               чтобы отгрузить <em>точно</em> нужный вес без остатка.
-              В этом режиме <code>factWeight = adjustedWeight</code>, дельта = <code>−prevBalance</code>
+              В этом режиме <code>Факт.вес = Скорр.вес</code>, дельта = <code>−пред.баланс</code>
               (баланс сбрасывается в ноль). Удобно при финальной отгрузке партии.
             </Term>
           </Section>
@@ -334,49 +334,49 @@ export default function HelpPage() {
             </p>
             <Formula
               label="1. Расчётный вес"
-              formula="calcWeight = totalWeight × share"
-              comment="totalWeight — общий вес отгрузки (кг), share — доля позиции (0…1)"
+              formula="Расч.вес = ОбщийВес × Доля"
+              comment="ОбщийВес — общий вес отгрузки (кг), Доля — доля позиции (0…1)"
             />
             <Formula
               label="2. Баланс (накопленный из истории — только эта компания)"
-              formula="balance = Σ delta_i  (по расчётам этой компании)"
+              formula="Баланс = Σ Δi  (по расчётам этой компании)"
               comment="Баланс привязан к компании. Переплата компании А не влияет на компанию Б."
             />
             <Formula
               label="3. Скорректированный вес"
-              formula="adjustedWeight = calcWeight − balance"
-              comment="Если adjustedWeight ≤ 0 → позиция не отгружается (packs = 0)"
+              formula="Скорр.вес = Расч.вес − Баланс"
+              comment="Если Скорр.вес ≤ 0 → позиция не отгружается (Упаковок = 0)"
             />
             <Formula
               label="4а. Количество упаковок (стандартный режим)"
-              formula="packs = ⌈ adjustedWeight / packWeight ⌉"
-              comment="Математическое округление вверх (ceil)"
+              formula="Упаковок = ⌈ Скорр.вес / Вес.уп. ⌉"
+              comment="Математическое округление вверх (⌈ ⌉)"
             />
             <Formula
               label="4б. Количество упаковок (открытый мешок)"
-              formula="packs = ⌈ adjustedWeight / packWeight ⌉  (для отображения)"
+              formula="Упаковок = ⌈ Скорр.вес / Вес.уп. ⌉  (для отображения)"
               comment="Но последний мешок неполный — фактически отгружается точный вес"
             />
             <Formula
               label="5а. Фактический вес (стандартный режим)"
-              formula="factWeight = packs × packWeight"
+              formula="Факт.вес = Упаковок × Вес.уп."
               comment="Всегда кратно весу упаковки"
             />
             <Formula
               label="5б. Фактический вес (открытый мешок)"
-              formula="factWeight = adjustedWeight"
+              formula="Факт.вес = Скорр.вес"
               comment="Точный вес, последняя упаковка частичная"
             />
             <Formula
               label="6. Дельта (записывается в историю)"
-              formula="delta = factWeight − calcWeight"
-              comment="Именно delta добавляется в CalculationHistory и влияет на будущие balance"
+              formula="Δ = Факт.вес − Расч.вес"
+              comment="Δ записывается в журнал истории и влияет на будущие балансы компании"
             />
 
             <div style={{ marginTop: 16 }}>
               <Tip>
                 В стандартном режиме дельта почти всегда положительна (округление вверх даёт небольшой
-                «излишек»). В режиме «открытый мешок» дельта = <code>−prevBalance</code>,
+                «излишек»). В режиме «открытый мешок» Δ = <code>−пред.баланс</code>,
                 то есть ровно компенсирует накопленный баланс — после расчёта баланс компании обнуляется.
               </Tip>
             </div>
@@ -389,12 +389,12 @@ export default function HelpPage() {
                 <div>Вес упаковки: <span style={{ color: 'var(--text)' }}>500 кг</span></div>
                 <div>Баланс из истории: <span style={{ color: 'var(--text)' }}>+12 кг (прошлый раз отгрузили лишнее)</span></div>
                 <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 6 }}>
-                  calcWeight = <span style={{ color: 'var(--amber)' }}>1000 × 0.1564 = 156.4 кг</span>
+                  Расч.вес = <span style={{ color: 'var(--amber)' }}>1000 × 0.1564 = 156.4 кг</span>
                 </div>
-                <div>adjustedWeight = <span style={{ color: 'var(--amber)' }}>156.4 − 12 = 144.4 кг</span></div>
-                <div>packs = <span style={{ color: 'var(--amber)' }}>⌈ 144.4 / 500 ⌉ = 1</span></div>
-                <div>factWeight = <span style={{ color: 'var(--amber)' }}>1 × 500 = 500 кг</span></div>
-                <div>delta = <span style={{ color: 'var(--red)' }}>500 − 156.4 = +343.6 кг</span> → уйдёт в баланс</div>
+                <div>Скорр.вес = <span style={{ color: 'var(--amber)' }}>156.4 − 12 = 144.4 кг</span></div>
+                <div>Упаковок = <span style={{ color: 'var(--amber)' }}>⌈ 144.4 / 500 ⌉ = 1</span></div>
+                <div>Факт.вес = <span style={{ color: 'var(--amber)' }}>1 × 500 = 500 кг</span></div>
+                <div>Δ = <span style={{ color: 'var(--red)' }}>500 − 156.4 = +343.6 кг</span> → уйдёт в баланс</div>
               </div>
             </div>
           </Section>
@@ -503,8 +503,8 @@ export default function HelpPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, marginBottom: 16 }}>
               {[
                 { col: 'Доля %',        desc: 'Заданный процент в распределении' },
-                { col: 'Расч. вес',     desc: 'totalWeight × share' },
-                { col: 'Скорректир.',   desc: 'calcWeight − balance' },
+                { col: 'Расч. вес',     desc: 'ОбщийВес × Доля' },
+                { col: 'Скорректир.',   desc: 'Расч.вес − Баланс' },
                 { col: 'Упаковка',      desc: 'Вес одного мешка/коробки' },
                 { col: 'Кол-во',        desc: 'Число мешков/коробок' },
                 { col: 'Факт',          desc: 'Реально отгружается' },
@@ -568,7 +568,7 @@ export default function HelpPage() {
               },
               {
                 q: 'Что значит «(неполный)» рядом с позицией в результате?',
-                a: 'Это метка режима «Открыть последний мешок»: последняя упаковка для этой позиции частичная — отгружается меньше, чем packWeight. Физически нужно взять мешок/коробку и отсыпать/отвесить нужное количество.',
+                a: 'Это метка режима «Открыть последний мешок»: последняя упаковка для этой позиции частичная — отгружается меньше, чем вес упаковки. Физически нужно взять мешок/коробку и отсыпать/отвесить нужное количество.',
               },
               {
                 q: 'Как сбросить баланс (начать с нуля)?',
@@ -584,7 +584,7 @@ export default function HelpPage() {
               },
               {
                 q: 'Можно ли изменить вес упаковки у уже используемой позиции?',
-                a: 'Да. Откройте редактирование позиции (✏️), измените packWeight и сохраните. Новый вес будет применён ко всем будущим расчётам. Исторические расчёты не пересчитываются.',
+                a: 'Да. Откройте редактирование позиции (✏️), измените вес упаковки и сохраните. Новый вес будет применён ко всем будущим расчётам. Исторические расчёты не пересчитываются.',
               },
             ].map(({ q, a }) => (
               <details
