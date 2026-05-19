@@ -9,6 +9,7 @@ export default function CalculatorPage() {
   const [items, setItems] = useState<Item[]>([])
   const [distribution, setDistribution] = useState<DistributionConfigView | null>(null)
   const [totalWeight, setTotalWeight] = useState('')
+  const [allowPartialPack, setAllowPartialPack] = useState(false)
   const [result, setResult] = useState<CalculateResponse | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -20,10 +21,7 @@ export default function CalculatorPage() {
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [itemsRes, distRes] = await Promise.all([
-        fetch('/api/items'),
-        fetch('/api/distribution'),
-      ])
+      const [itemsRes, distRes] = await Promise.all([fetch('/api/items'), fetch('/api/distribution')])
       if (!itemsRes.ok || !distRes.ok) throw new Error()
       const [itemsJson, distJson] = await Promise.all([itemsRes.json(), distRes.json()])
       setItems(itemsJson)
@@ -35,190 +33,180 @@ export default function CalculatorPage() {
     }
   }, [])
 
-  useEffect(() => {
-    loadAll()
-  }, [loadAll])
+  useEffect(() => { loadAll() }, [loadAll])
 
-  const enabledDistributionRows = useMemo(() => (distribution?.items ?? []).filter((row) => row.enabled), [distribution])
+  // ── derived state ──────────────────────────────────────────────────────────
+  const enabledDistRows = useMemo(
+    () => (distribution?.items ?? []).filter((r) => r.enabled),
+    [distribution],
+  )
   const sharedItemIds = useMemo(
-    () => new Set(enabledDistributionRows.map((row) => row.itemId)),
-    [enabledDistributionRows],
+    () => new Set(enabledDistRows.map((r) => r.itemId)),
+    [enabledDistRows],
   )
-  const missingDistribution = useMemo(() => items.filter((item) => !sharedItemIds.has(item.id)), [items, sharedItemIds])
-  const unconfirmedDistributed = useMemo(
-    () => enabledDistributionRows.filter((row) => !row.item.weightConfirmed),
-    [enabledDistributionRows],
-  )
-  const invalidPackWeight = useMemo(
-    () => enabledDistributionRows.filter((row) => !Number.isFinite(row.item.packWeight) || row.item.packWeight <= 0),
-    [enabledDistributionRows],
-  )
+
   const shareSum = useMemo(
-    () => enabledDistributionRows.reduce((sum, row) => sum + row.share, 0),
-    [enabledDistributionRows],
+    () => enabledDistRows.reduce((s, r) => s + r.share, 0),
+    [enabledDistRows],
   )
   const isShareSumValid = Math.abs(shareSum - 1) <= 0.001
 
+  const unconfirmedInDist = useMemo(
+    () => enabledDistRows.filter((r) => !r.item.weightConfirmed),
+    [enabledDistRows],
+  )
+
   const hasBlockingErrors =
     !distribution ||
-    enabledDistributionRows.length === 0 ||
+    enabledDistRows.length === 0 ||
     !isShareSumValid ||
-    unconfirmedDistributed.length > 0 ||
-    invalidPackWeight.length > 0
+    unconfirmedInDist.length > 0
 
+  // ── CRUD ───────────────────────────────────────────────────────────────────
   async function addItem(data: Omit<Item, 'id' | 'createdAt' | 'updatedAt'>) {
-    setSavingItems(true)
-    setError('')
+    setSavingItems(true); setError('')
     try {
-      const res = await fetch('/api/items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
+      const res = await fetch('/api/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       const json = await res.json()
-      if (!res.ok) {
-        setError(json.error ?? 'Ошибка при добавлении')
-        return
-      }
+      if (!res.ok) { setError(json.error ?? 'Ошибка при добавлении'); return }
       setItems((prev) => [...prev, json])
-    } catch {
-      setError('Ошибка при добавлении')
-    } finally {
-      setSavingItems(false)
-    }
+    } catch { setError('Ошибка при добавлении') }
+    finally { setSavingItems(false) }
   }
 
   async function updateItem(id: string, data: Omit<Item, 'id' | 'createdAt' | 'updatedAt'>) {
-    setSavingItems(true)
-    setError('')
+    setSavingItems(true); setError('')
     try {
-      const res = await fetch(`/api/items/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
+      const res = await fetch(`/api/items/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       const json = await res.json()
-      if (!res.ok) {
-        setError(json.error ?? 'Ошибка при обновлении')
-        return
-      }
-      setItems((prev) => prev.map((item) => (item.id === id ? json : item)))
-      setDistribution((prev) => prev ? {
-        ...prev,
-        items: prev.items.map((row) => row.itemId === id ? { ...row, item: json } : row),
-      } : prev)
-    } catch {
-      setError('Ошибка при обновлении')
-    } finally {
-      setSavingItems(false)
-    }
+      if (!res.ok) { setError(json.error ?? 'Ошибка при обновлении'); return }
+      setItems((prev) => prev.map((item) => item.id === id ? json : item))
+      setDistribution((prev) => prev
+        ? { ...prev, items: prev.items.map((r) => r.itemId === id ? { ...r, item: json } : r) }
+        : prev)
+    } catch { setError('Ошибка при обновлении') }
+    finally { setSavingItems(false) }
   }
 
   async function deleteItem(id: string) {
-    setSavingItems(true)
-    setError('')
+    setSavingItems(true); setError('')
     try {
       const res = await fetch(`/api/items/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error()
       setItems((prev) => prev.filter((item) => item.id !== id))
-      setDistribution((prev) => prev ? { ...prev, items: prev.items.filter((row) => row.itemId !== id) } : prev)
-    } catch {
-      setError('Ошибка при удалении')
-    } finally {
-      setSavingItems(false)
-    }
+      setDistribution((prev) => prev ? { ...prev, items: prev.items.filter((r) => r.itemId !== id) } : prev)
+    } catch { setError('Ошибка при удалении') }
+    finally { setSavingItems(false) }
   }
 
-  async function calculateWithCompany(company: string) {
-    setError('')
-    setResult(null)
-
+  // ── Calculate ──────────────────────────────────────────────────────────────
+  async function runCalculation(company: string) {
+    setError(''); setResult(null)
     const parsed = Number(totalWeight)
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      setError('Введите корректный общий вес')
-      return
-    }
-
-    if (hasBlockingErrors) {
-      setError('Исправьте ошибки в распределении и позициях перед расчётом')
-      return
-    }
-
-    if (!company.trim()) {
-      setError('Введите название компании')
-      return
-    }
+    if (!Number.isFinite(parsed) || parsed <= 0) { setError('Введите корректный общий вес'); return }
+    if (!company.trim()) { setError('Введите название компании'); return }
+    if (hasBlockingErrors) { setError('Исправьте ошибки перед расчётом'); return }
 
     setCalculating(true)
     try {
       const res = await fetch('/api/calculation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ totalWeight: parsed, companyName: company.trim() }),
+        body: JSON.stringify({ totalWeight: parsed, companyName: company.trim(), allowPartialPack }),
       })
       const json = await res.json()
-      if (!res.ok) {
-        setError(json.error ?? 'Ошибка при расчёте')
-        return
-      }
+      if (!res.ok) { setError(json.error ?? 'Ошибка при расчёте'); return }
       setResult(json)
       setCompanyModalOpen(false)
       setCompanyName('')
-      await loadAll()
-    } catch {
-      setError('Ошибка при расчёте')
-    } finally {
-      setCalculating(false)
-    }
+    } catch { setError('Ошибка при расчёте') }
+    finally { setCalculating(false) }
   }
 
   function onCalculateClick() {
+    const parsed = Number(totalWeight)
+    if (!Number.isFinite(parsed) || parsed <= 0) { setError('Введите корректный общий вес'); return }
     if (hasBlockingErrors) {
-      setError('Исправьте ошибки в распределении и позициях перед расчётом')
+      if (!distribution || enabledDistRows.length === 0) {
+        setError('Настройте распределение долей на странице «Распределение»')
+      } else if (!isShareSumValid) {
+        setError(`Сумма долей в распределении: ${(shareSum * 100).toFixed(2)}% (нужно 100%). Исправьте на странице «Распределение»`)
+      } else if (unconfirmedInDist.length > 0) {
+        setError(`Подтвердите вес упаковки: ${unconfirmedInDist.map((r) => r.item.name).join(', ')}`)
+      }
       return
     }
     setCompanyModalOpen(true)
   }
 
+  // ── render ─────────────────────────────────────────────────────────────────
   return (
     <>
-      <h1 className="page-title">Калькулятор распределения камня</h1>
+      <h1 className="page-title">🟡 Калькулятор распределения</h1>
 
-      {error && <div className="alert alert-error" onClick={() => setError('')} style={{ cursor: 'pointer' }}>{error} <span style={{ float: 'right' }}>×</span></div>}
+      {error && (
+        <div className="alert alert-error" onClick={() => setError('')} style={{ cursor: 'pointer' }}>
+          {error} <span style={{ float: 'right', opacity: 0.6 }}>✕</span>
+        </div>
+      )}
 
+      {/* Параметры */}
       <div className="card">
-        <div className="card-title">Параметры расчёта</div>
+        <div className="card-title">⚙️ Параметры расчёта</div>
 
-        <div className="form-grid-3">
+        <div className="form-grid-3" style={{ marginBottom: 16 }}>
           <div className="form-group">
-            <label>Общий вес клиента (кг)</label>
-            <input type="number" min="0.01" step="0.01" value={totalWeight} onChange={(e) => setTotalWeight(e.target.value)} />
+            <label>Общий вес отгрузки (кг)</label>
+            <input
+              type="number" min="0.01" step="0.01" inputMode="decimal"
+              value={totalWeight}
+              onChange={(e) => { setTotalWeight(e.target.value); setResult(null) }}
+              placeholder="0.00"
+            />
           </div>
         </div>
 
-        <div className={`alert ${isShareSumValid ? 'alert-success' : 'alert-error'}`} style={{ marginTop: 12, marginBottom: 0 }}>
-          Сумма долей: {(shareSum * 100).toFixed(2)}% {isShareSumValid ? '✓' : '(должно быть 100% ±0.1%)'}
+        {/* Open-bag toggle */}
+        <div className="toggle-wrap" style={{ marginBottom: 12 }}>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={allowPartialPack}
+              onChange={(e) => { setAllowPartialPack(e.target.checked); setResult(null) }}
+            />
+            <span className="toggle-slider" />
+          </label>
+          <span className="toggle-label">
+            Открыть последний мешок/коробку
+            {allowPartialPack && (
+              <span style={{ marginLeft: 6, color: 'var(--amber)', fontSize: 12 }}>
+                (точный вес, частичная упаковка)
+              </span>
+            )}
+          </span>
         </div>
 
-        {missingDistribution.length > 0 && (
-          <div className="alert alert-info" style={{ marginTop: 12, marginBottom: 0 }}>
-            Позиции без доли не участвуют в расчёте: {missingDistribution.map((item) => item.name).join(', ')}.
-          </div>
-        )}
-
-        {unconfirmedDistributed.length > 0 && (
-          <div className="alert alert-error" style={{ marginTop: 12, marginBottom: 0 }}>
-            Неподтверждённые позиции в распределении: {unconfirmedDistributed.map((row) => row.item.name).join(', ')}.
-          </div>
-        )}
-
-        {invalidPackWeight.length > 0 && (
-          <div className="alert alert-error" style={{ marginTop: 12, marginBottom: 0 }}>
-            Некорректный packWeight у позиций: {invalidPackWeight.map((row) => row.item.name).join(', ')}.
+        {/* Distribution status summary */}
+        {!loading && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className={`alert ${isShareSumValid && enabledDistRows.length > 0 ? 'alert-success' : 'alert-info'}`}
+              style={{ marginBottom: 0, padding: '8px 14px' }}>
+              {enabledDistRows.length === 0
+                ? '⚠️ Распределение не настроено — перейдите на страницу «Распределение»'
+                : isShareSumValid
+                  ? `✓ Распределение: ${enabledDistRows.length} позиций, сумма долей 100%`
+                  : `⚠️ Сумма долей: ${(shareSum * 100).toFixed(2)}% — исправьте на странице «Распределение»`}
+            </div>
+            {unconfirmedInDist.length > 0 && (
+              <div className="alert alert-error" style={{ marginBottom: 0, padding: '8px 14px' }}>
+                ⚠️ Не подтверждён вес: {unconfirmedInDist.map((r) => r.item.name).join(', ')} — подтвердите в таблице ниже
+              </div>
+            )}
           </div>
         )}
       </div>
 
+      {/* Result */}
       {result && (
         <CalculationResult
           result={result}
@@ -226,9 +214,11 @@ export default function CalculatorPage() {
           calculationId={result.calculationId}
           createdAt={result.createdAt}
           warnings={result.warnings}
+          allowPartialPack={allowPartialPack}
         />
       )}
 
+      {/* Items table */}
       <ContainerTable
         items={items}
         sharedItemIds={sharedItemIds}
@@ -238,31 +228,44 @@ export default function CalculatorPage() {
         loading={savingItems}
       />
 
+      {/* Sticky calculate button */}
       <div className="sticky-action-bar">
-        <button className="btn btn-primary btn-lg" onClick={onCalculateClick} disabled={loading || calculating || items.length === 0 || hasBlockingErrors}>
-          {calculating ? <><span className="spinner" />&nbsp;Считаю...</> : 'Рассчитать'}
+        <button
+          className="btn btn-primary btn-lg"
+          onClick={onCalculateClick}
+          disabled={loading || calculating || !totalWeight}
+        >
+          {calculating
+            ? <><span className="spinner" />&nbsp;Считаю...</>
+            : '🔢 Рассчитать'}
         </button>
       </div>
 
+      {/* Company name modal */}
       {companyModalOpen && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setCompanyModalOpen(false) }}>
           <div className="modal">
             <div className="modal-title">
               <span>Введите название компании</span>
-              <button className="btn btn-ghost btn-sm" onClick={() => setCompanyModalOpen(false)}>×</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setCompanyModalOpen(false)}>✕</button>
             </div>
             <div className="form-group">
-              <label>Компания</label>
+              <label>Компания / клиент</label>
               <input
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="Например: ООО Балтия"
+                onKeyDown={(e) => e.key === 'Enter' && companyName.trim() && runCalculation(companyName)}
                 autoFocus
               />
             </div>
             <div className="form-actions" style={{ marginTop: 16 }}>
-              <button className="btn btn-primary" onClick={() => calculateWithCompany(companyName)} disabled={calculating || !companyName.trim()}>
-                {calculating ? <span className="spinner" /> : 'Рассчитать'}
+              <button
+                className="btn btn-primary"
+                onClick={() => runCalculation(companyName)}
+                disabled={calculating || !companyName.trim()}
+              >
+                {calculating ? <span className="spinner" /> : '🔢 Рассчитать'}
               </button>
               <button className="btn btn-ghost" onClick={() => setCompanyModalOpen(false)}>Отмена</button>
             </div>

@@ -8,6 +8,7 @@ export async function POST(request: Request) {
     const body = await request.json()
     const totalWeight = Number(body.totalWeight)
     const companyName = typeof body.companyName === 'string' ? body.companyName.trim() : ''
+    const allowPartialPack = Boolean(body.allowPartialPack)
 
     if (!companyName) {
       return NextResponse.json({ error: 'Введите название компании' }, { status: 400 })
@@ -112,6 +113,7 @@ export async function POST(request: Request) {
       activeRows.map((row) => row.item),
       activeDistribution,
       balance,
+      allowPartialPack,
     )
 
     const calculation = await prisma.$transaction(async (tx) => {

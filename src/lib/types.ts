@@ -46,6 +46,7 @@ export interface ShipmentItemResult {
   factWeight: number
   delta: number
   newBalance: number
+  isPartial?: boolean
 }
 
 export interface CalculationResult {

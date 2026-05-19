@@ -22,6 +22,7 @@ export function calculateShipment(
   items: CalcItem[],
   distribution: DistributionItemShare[],
   balance: Record<string, number>,
+  allowPartialPack = false,
 ): CalculationResult {
   const safeTotalWeight = safeNumber(totalWeight)
   if (safeTotalWeight <= 0) {
@@ -48,9 +49,25 @@ export function calculateShipment(
     const prevBalance = safeNumber(balance[item.id])
     const adjustedWeight = calcWeight - prevBalance
 
-    const packs = adjustedWeight <= 0 ? 0 : Math.ceil(adjustedWeight / packWeight)
-    const factWeight = packs * packWeight
-    const delta = factWeight - calcWeight
+    let packs: number
+    let factWeight: number
+    let isPartial = false
+
+    if (adjustedWeight <= 0) {
+      packs = 0
+      factWeight = 0
+    } else if (allowPartialPack) {
+      // Open last bag: take exact amount, last unit may be partial
+      packs = Math.ceil(adjustedWeight / packWeight)
+      factWeight = adjustedWeight
+      isPartial = (adjustedWeight % packWeight) > 0.0001
+    } else {
+      // Full packs only: always round up to whole pack
+      packs = Math.ceil(adjustedWeight / packWeight)
+      factWeight = packs * packWeight
+    }
+
+    const delta = round2(factWeight - calcWeight)
     const newBalance = delta
 
     results.push({
@@ -63,8 +80,9 @@ export function calculateShipment(
       adjustedWeight: round2(adjustedWeight),
       packs,
       factWeight: round2(factWeight),
-      delta: round2(delta),
+      delta,
       newBalance: round2(newBalance),
+      isPartial,
     })
   }
 
