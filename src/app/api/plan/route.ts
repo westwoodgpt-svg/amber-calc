@@ -15,7 +15,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Укажите компанию' }, { status: 400 })
     }
 
-    const [order, items, executedCalcs] = await Promise.all([
+    const [order, items, executedCalcs, exclusionRows] = await Promise.all([
       prisma.companyOrder.findUnique({ where: { companyName_year: { companyName: company, year } } }),
       prisma.item.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
       prisma.calculation.findMany({
@@ -26,6 +26,7 @@ export async function GET(request: Request) {
           histories: true,
         },
       }),
+      prisma.companyExclusion.findMany({ where: { companyName: company, year } }),
     ])
 
     if (!order) {
@@ -55,6 +56,8 @@ export async function GET(request: Request) {
       }
     }
 
+    const excludedIds = new Set(exclusionRows.map((e) => e.itemId))
+
     const shipmentPlans = planAllShipments(
       vesItems,
       sitoItems,
@@ -64,6 +67,7 @@ export async function GET(request: Request) {
       order.lakKg,
       executedBalance,
       executedShipmentNumbers,
+      excludedIds,
     )
 
     // Overlay executed shipment actual data
@@ -112,6 +116,7 @@ export async function GET(request: Request) {
       order,
       executedCount: executedShipmentNumbers.size,
       shipments: shipmentPlans,
+      exclusions: exclusionRows.map((e) => ({ id: e.id, itemId: e.itemId })),
     })
   } catch (error) {
     console.error('GET /api/plan failed', error)

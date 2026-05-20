@@ -16,6 +16,8 @@ export interface CategoryResult {
   totalCalcWeight: number
   totalActual: number
   totalDelta: number
+  /** Unrounded deltas keyed by itemId — used internally for precise balance propagation */
+  rawDeltaByItemId: Record<string, number>
 }
 
 function round2(value: number): number {
@@ -34,48 +36,64 @@ function safeNumber(value: unknown, fallback = 0): number {
  * @param items         All items in this category
  * @param balance       Accumulated delta per itemId from prior shipments (same company)
  * @param allowPartial  If true, last unit may be partial (5th shipment zero-out mode)
+ * @param excludedIds   Items to skip entirely (their lot share is redistributed to the rest)
  */
 export function computeCategory(
   targetKg: number,
   items: CalcItem[],
   balance: Record<string, number>,
   allowPartial = false,
+  excludedIds: ReadonlySet<string> = new Set(),
 ): CategoryResult {
   const safeTarget = safeNumber(targetKg)
-  const totalLot = items.reduce((s, i) => s + i.lotKg, 0)
+  // Excluded items are skipped; their lot weight is removed from totalLot so the
+  // remaining items' shares automatically grow to fill 100%.
+  const activeItems = excludedIds.size > 0 ? items.filter((i) => !excludedIds.has(i.id)) : items
+  const totalLot = activeItems.reduce((s, i) => s + i.lotKg, 0)
   if (totalLot <= 0) {
-    return { targetKg: safeTarget, items: [], totalCalcWeight: 0, totalActual: 0, totalDelta: 0 }
+    return { targetKg: safeTarget, items: [], totalCalcWeight: 0, totalActual: 0, totalDelta: 0, rawDeltaByItemId: {} }
   }
 
   const results: PlannedShipmentItem[] = []
+  const rawDeltaByItemId: Record<string, number> = {}
 
-  for (const item of items) {
+  for (const item of activeItems) {
     if (item.lotKg <= 0) continue
     const packWeight = safeNumber(item.packWeight)
     if (packWeight <= 0) continue
 
     const share = item.lotKg / totalLot
-    const calcWeight = safeTarget * share
+    const calcWeight = safeTarget * share          // raw — not rounded
     const prevBalance = safeNumber(balance[item.id])
-    const adjustedWeight = calcWeight - prevBalance
+    const adjustedWeight = calcWeight - prevBalance  // raw
 
     let packs: number
-    let factWeight: number
+    let rawFactWeight: number
     let isPartial = false
 
     if (adjustedWeight <= 0) {
+      // Over-delivered in prior shipments — skip, carry balance forward
       packs = 0
-      factWeight = 0
+      rawFactWeight = 0
     } else if (allowPartial) {
+      // 5th shipment (zero-out): deliver exact adjusted weight
       packs = Math.ceil(adjustedWeight / packWeight)
-      factWeight = adjustedWeight
+      rawFactWeight = adjustedWeight
       isPartial = (adjustedWeight % packWeight) > 0.0001
+    } else if (adjustedWeight < packWeight / 2) {
+      // Less than half a pack — skip this shipment, accumulate balance for next time
+      // delta will be 0 - calcWeight = negative, growing the "owed" amount each shipment
+      // until it reaches packWeight/2 and triggers a box
+      packs = 0
+      rawFactWeight = 0
     } else {
       packs = Math.ceil(adjustedWeight / packWeight)
-      factWeight = packs * packWeight
+      rawFactWeight = packs * packWeight
     }
 
-    const delta = round2(factWeight - calcWeight)
+    // Raw delta used for precise balance propagation (no rounding accumulation)
+    const rawDelta = rawFactWeight - calcWeight
+    rawDeltaByItemId[item.id] = rawDelta
 
     results.push({
       itemId: item.id,
@@ -84,12 +102,12 @@ export function computeCategory(
       type: item.type,
       packWeight,
       lotKg: item.lotKg,
-      share: round2(share),
+      share: Number(share.toFixed(6)),
       calcWeight: round2(calcWeight),
       adjustedWeight: round2(adjustedWeight),
       packs,
-      factWeight: round2(factWeight),
-      delta,
+      factWeight: round2(rawFactWeight),
+      delta: round2(rawDelta),
       isPartial,
     })
   }
@@ -98,7 +116,7 @@ export function computeCategory(
   const totalActual = round2(results.reduce((s, r) => s + r.factWeight, 0))
   const totalDelta = round2(results.reduce((s, r) => s + r.delta, 0))
 
-  return { targetKg: round2(safeTarget), items: results, totalCalcWeight, totalActual, totalDelta }
+  return { targetKg: round2(safeTarget), items: results, totalCalcWeight, totalActual, totalDelta, rawDeltaByItemId }
 }
 
 /**
@@ -115,6 +133,7 @@ export function planAllShipments(
   annualLakKg: number,
   executedBalance: Record<string, number>,
   executedShipmentNumbers: Set<number>,
+  excludedIds: ReadonlySet<string> = new Set(),
 ) {
   const perShipVes = annualVesKg / 5
   const perShipSito = annualSitoKg / 5
@@ -129,13 +148,13 @@ export function planAllShipments(
 
     // For planned shipments, compute from running balance (accumulated deltas)
     const vesResult = annualVesKg > 0
-      ? computeCategory(perShipVes, vesItems, runningBalance, isPartial)
+      ? computeCategory(perShipVes, vesItems, runningBalance, isPartial, excludedIds)
       : null
     const sitoResult = annualSitoKg > 0
-      ? computeCategory(perShipSito, sitoItems, runningBalance, isPartial)
+      ? computeCategory(perShipSito, sitoItems, runningBalance, isPartial, excludedIds)
       : null
     const lakResult = annualLakKg > 0
-      ? computeCategory(perShipLak, lakItems, runningBalance, isPartial)
+      ? computeCategory(perShipLak, lakItems, runningBalance, isPartial, excludedIds)
       : null
 
     const allItems = [
@@ -169,12 +188,18 @@ export function planAllShipments(
       items: allItems,
     })
 
-    // If this shipment is planned (not yet executed), carry its delta forward
-    // for subsequent projections.
+    // If this shipment is planned (not yet executed), carry its raw delta forward
+    // for subsequent projections. Raw (unrounded) values prevent ~3 kg rounding
+    // accumulation across 52 VES items × 5 shipments.
     // If it IS executed, the real balance is already in executedBalance.
     if (status === 'planned') {
-      for (const item of allItems) {
-        runningBalance[item.itemId] = (runningBalance[item.itemId] ?? 0) + item.delta
+      const allRawDeltas = {
+        ...(vesResult?.rawDeltaByItemId ?? {}),
+        ...(sitoResult?.rawDeltaByItemId ?? {}),
+        ...(lakResult?.rawDeltaByItemId ?? {}),
+      }
+      for (const [itemId, rawDelta] of Object.entries(allRawDeltas)) {
+        runningBalance[itemId] = (runningBalance[itemId] ?? 0) + rawDelta
       }
     }
   }

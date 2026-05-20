@@ -111,6 +111,7 @@ export interface ShipmentPlanResponse {
   order: CompanyOrder
   executedCount: number
   shipments: PlannedShipment[]
+  exclusions: Array<{ id: string; itemId: string }>
 }
 
 // ── History ───────────────────────────────────────────────────────────────────

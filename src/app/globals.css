@@ -59,7 +59,7 @@ a:hover { text-decoration: underline; }
   height: 56px;
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -75,6 +75,7 @@ a:hover { text-decoration: underline; }
   align-items: center;
   gap: 7px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .navbar-links { display: flex; gap: 4px; }
@@ -91,6 +92,34 @@ a:hover { text-decoration: underline; }
 }
 .nav-link:hover { background: var(--bg-card2); color: var(--text); text-decoration: none; }
 .nav-link.active { background: var(--amber); color: #000; }
+
+/* Mobile compact nav — scrollable row of short labels */
+.navbar-mobile {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex: 1;
+  min-width: 0;
+}
+.navbar-mobile::-webkit-scrollbar { display: none; }
+
+.nav-link-mobile {
+  padding: 5px 10px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+  transition: all 0.15s;
+  text-decoration: none;
+}
+.nav-link-mobile:hover { background: var(--bg-card2); color: var(--text); text-decoration: none; }
+.nav-link-mobile.active { background: var(--amber); color: #000; }
 
 /* ── Typography ──────────────────────────────────────────────────────────── */
 .page-title {

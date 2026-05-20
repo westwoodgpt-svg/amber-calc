@@ -130,35 +130,50 @@ export default function CalculatorPage() {
 
         {order && !loadingPlan && (
           <div style={{ marginTop: 8 }}>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 4 }}>
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Заявка на 2026 год:</span>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Заявка {order.year}:</span>
               {order.vesKg > 0 && (
-                <span className="cat-badge" style={{ background: `${TYPE_COLORS.VES}22`, color: TYPE_COLORS.VES, borderColor: `${TYPE_COLORS.VES}55` }}>
+                <span className="cat-badge" style={{ background: `${TYPE_COLORS.VES}22`, color: TYPE_COLORS.VES, borderColor: `${TYPE_COLORS.VES}55`, fontSize: 12 }}>
                   {TYPE_LABELS.VES} {order.vesKg.toLocaleString('ru')} кг
                 </span>
               )}
               {order.sitoKg > 0 && (
-                <span className="cat-badge" style={{ background: `${TYPE_COLORS.SITO}22`, color: TYPE_COLORS.SITO, borderColor: `${TYPE_COLORS.SITO}55` }}>
+                <span className="cat-badge" style={{ background: `${TYPE_COLORS.SITO}22`, color: TYPE_COLORS.SITO, borderColor: `${TYPE_COLORS.SITO}55`, fontSize: 12 }}>
                   {TYPE_LABELS.SITO} {order.sitoKg.toLocaleString('ru')} кг
                 </span>
               )}
               {order.lakKg > 0 && (
-                <span className="cat-badge" style={{ background: `${TYPE_COLORS.LAK}22`, color: TYPE_COLORS.LAK, borderColor: `${TYPE_COLORS.LAK}55` }}>
+                <span className="cat-badge" style={{ background: `${TYPE_COLORS.LAK}22`, color: TYPE_COLORS.LAK, borderColor: `${TYPE_COLORS.LAK}55`, fontSize: 12 }}>
                   {TYPE_LABELS.LAK} {order.lakKg.toLocaleString('ru')} кг
                 </span>
               )}
             </div>
             {plan && (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                Выполнено отгрузок: <strong style={{ color: 'var(--text)' }}>{plan.executedCount} из 5</strong>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span>Выполнено: <strong style={{ color: 'var(--text)' }}>{plan.executedCount}/5</strong></span>
+                {/* Progress dots */}
+                <span style={{ display: 'flex', gap: 3 }}>
+                  {[1,2,3,4,5].map((n) => {
+                    const done = n <= plan.executedCount
+                    const isNext = n === plan.executedCount + 1
+                    return (
+                      <span key={n} style={{
+                        width: 16, height: 16, borderRadius: '50%', fontSize: 9, fontWeight: 700,
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        background: done ? 'var(--green)' : isNext ? 'var(--amber)' : 'var(--border)',
+                        color: (done || isNext) ? '#000' : 'var(--text-muted)',
+                      }}>{done ? '✓' : n}</span>
+                    )
+                  })}
+                </span>
                 {nextShipment && (
-                  <span style={{ marginLeft: 8 }}>
-                    → следующая: <strong style={{ color: 'var(--amber)' }}>отгрузка №{nextShipment.number}</strong>
-                    {nextShipment.number === 5 && <span style={{ marginLeft: 4, fontSize: 11 }}>(последняя — выход в ноль)</span>}
-                  </span>
+                  <span style={{ color: 'var(--amber)' }}>→ отгрузка №{nextShipment.number}{nextShipment.number === 5 ? ' (выход в ноль)' : ''}</span>
                 )}
                 {plan.executedCount === 5 && (
-                  <span style={{ marginLeft: 8, color: 'var(--green)' }}>— все 5 отгрузок выполнены ✓</span>
+                  <span style={{ color: 'var(--green)' }}>Все отгрузки выполнены ✓</span>
+                )}
+                {plan.exclusions.length > 0 && (
+                  <span style={{ color: 'var(--text-muted)', opacity: 0.7 }}>· {plan.exclusions.length} поз. исключено</span>
                 )}
               </div>
             )}
@@ -181,6 +196,7 @@ export default function CalculatorPage() {
               onToggle={() => setExpandedShipment(expandedShipment === shipment.number ? null : shipment.number)}
               onExecute={() => executeShipment(shipment.number)}
               executing={executing}
+              isNext={nextShipment?.number === shipment.number}
             />
           ))}
         </div>
@@ -209,9 +225,10 @@ interface ShipmentRowProps {
   onToggle: () => void
   onExecute: () => void
   executing: boolean
+  isNext: boolean  // true only for the immediately-next planned shipment
 }
 
-function ShipmentRow({ shipment, expanded, onToggle, onExecute, executing }: ShipmentRowProps) {
+function ShipmentRow({ shipment, expanded, onToggle, onExecute, executing, isNext }: ShipmentRowProps) {
   const isExecuted = shipment.status === 'executed'
   const isFinal = shipment.number === 5
 
@@ -280,17 +297,23 @@ function ShipmentRow({ shipment, expanded, onToggle, onExecute, executing }: Shi
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {!isExecuted && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {!isExecuted && isNext && (
             <button
               className="btn btn-primary btn-sm"
               onClick={(e) => { e.stopPropagation(); onExecute() }}
               disabled={executing}
+              style={{ whiteSpace: 'nowrap' }}
             >
-              {executing ? <span className="spinner" /> : `🚀 Выполнить №${shipment.number}`}
+              {executing ? <span className="spinner" /> : `🚀 №${shipment.number}`}
             </button>
           )}
-          <span style={{ color: 'var(--text-muted)', fontSize: 16 }}>{expanded ? '▲' : '▼'}</span>
+          {!isExecuted && !isNext && (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 6px', background: 'var(--bg)', borderRadius: 4, border: '1px solid var(--border)' }}>
+              ожидает
+            </span>
+          )}
+          <span style={{ color: 'var(--text-muted)', fontSize: 14, width: 20, textAlign: 'center' }}>{expanded ? '▲' : '▼'}</span>
         </div>
       </div>
 

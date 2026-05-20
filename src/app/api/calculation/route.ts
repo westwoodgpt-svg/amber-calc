@@ -16,11 +16,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Номер отгрузки должен быть от 1 до 5' }, { status: 400 })
     }
 
-    const [order, items] = await Promise.all([
+    const [order, items, exclusionRows] = await Promise.all([
       prisma.companyOrder.findUnique({
         where: { companyName_year: { companyName, year } },
       }),
       prisma.item.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
+      prisma.companyExclusion.findMany({ where: { companyName, year } }),
     ])
 
     if (!order) {
@@ -39,6 +40,23 @@ export async function POST(request: Request) {
         { error: `Отгрузка №${shipmentNumber} для «${companyName}» уже выполнена (ID: ${alreadyDone.id})` },
         { status: 400 },
       )
+    }
+
+    // Enforce sequential execution — previous shipments must be done first
+    if (shipmentNumber > 1) {
+      const doneNums = await prisma.calculation.findMany({
+        where: { companyName, status: 'COMPLETED', deletedAt: null },
+        select: { shipmentNumber: true },
+      })
+      const doneSet = new Set(doneNums.map((r) => r.shipmentNumber))
+      for (let n = 1; n < shipmentNumber; n++) {
+        if (!doneSet.has(n)) {
+          return NextResponse.json(
+            { error: `Сначала выполните отгрузку №${n} для «${companyName}»` },
+            { status: 400 },
+          )
+        }
+      }
     }
 
     const isPartial = shipmentNumber === 5
@@ -67,9 +85,11 @@ export async function POST(request: Request) {
     const perShipSito = order.sitoKg / 5
     const perShipLak = order.lakKg / 5
 
-    const vesResult = order.vesKg > 0 ? computeCategory(perShipVes, vesItems, balance, isPartial) : null
-    const sitoResult = order.sitoKg > 0 ? computeCategory(perShipSito, sitoItems, balance, isPartial) : null
-    const lakResult = order.lakKg > 0 ? computeCategory(perShipLak, lakItems, balance, isPartial) : null
+    const excludedIds = new Set(exclusionRows.map((e) => e.itemId))
+
+    const vesResult = order.vesKg > 0 ? computeCategory(perShipVes, vesItems, balance, isPartial, excludedIds) : null
+    const sitoResult = order.sitoKg > 0 ? computeCategory(perShipSito, sitoItems, balance, isPartial, excludedIds) : null
+    const lakResult = order.lakKg > 0 ? computeCategory(perShipLak, lakItems, balance, isPartial, excludedIds) : null
 
     const allItems = [
       ...(vesResult?.items ?? []),
