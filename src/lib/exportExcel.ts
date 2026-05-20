@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import type { CalculationResult, HistoryCalculation } from './types'
+import type { PlannedShipment, HistoryCalculation } from './types'
 import { TYPE_EXPORT_LABELS, sanitizeFilenamePart } from './constants'
 
 function round2(value: number): number {
@@ -7,28 +7,19 @@ function round2(value: number): number {
 }
 
 export function exportShipmentToExcel(
-  result: CalculationResult,
+  shipment: PlannedShipment,
   companyName: string,
   calculatedAt = new Date(),
 ) {
   const wb = XLSX.utils.book_new()
 
-  const shipmentRows: (string | number)[][] = [
-    [
-      'Наименование',
-      'Тип',
-      'Доля (%)',
-      'Расчётный вес (кг)',
-      'Скорректированный вес (кг)',
-      'Упаковка (кг)',
-      'Кол-во упаковок',
-      'Фактический вес (кг)',
-      'Отклонение (кг)',
-    ],
+  const rows: (string | number)[][] = [
+    ['Артикул', 'Наименование', 'Тип', 'Доля (%)', 'Расч. вес (кг)', 'Скорр. вес (кг)', 'Уп. (кг)', 'Кол-во', 'Факт (кг)', 'Δ (кг)'],
   ]
 
-  for (const row of result.items) {
-    shipmentRows.push([
+  for (const row of shipment.items) {
+    rows.push([
+      row.article,
       row.name,
       TYPE_EXPORT_LABELS[row.type],
       round2(row.share * 100),
@@ -41,72 +32,75 @@ export function exportShipmentToExcel(
     ])
   }
 
-  shipmentRows.push([
-    'ИТОГО',
-    '',
-    '',
-    round2(result.totals.totalCalcWeight),
+  rows.push([
+    '', 'ИТОГО', '', '',
+    round2(shipment.items.reduce((s, r) => s + r.calcWeight, 0)),
     '',
     '',
     '',
-    round2(result.totals.totalActual),
-    round2(result.totals.totalDelta),
+    round2(shipment.totalActual),
+    round2(shipment.totalDelta),
   ])
 
-  const wsShipment = XLSX.utils.aoa_to_sheet(shipmentRows)
-  wsShipment['!cols'] = [
-    { wch: 28 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 18 },
-    { wch: 24 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 18 },
-    { wch: 14 },
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [
+    { wch: 14 }, { wch: 28 }, { wch: 8 }, { wch: 10 }, { wch: 14 },
+    { wch: 14 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 },
   ]
-  XLSX.utils.book_append_sheet(wb, wsShipment, 'Отгрузка')
+  XLSX.utils.book_append_sheet(wb, ws, `Отгрузка_${shipment.number}`)
 
-  const summaryRows: (string | number)[][] = [
+  const summary: (string | number)[][] = [
     ['Показатель', 'Значение'],
     ['Компания', companyName || '—'],
-    ['Общий запрошенный вес', round2(result.totals.totalRequested)],
-    ['Фактический вес', round2(result.totals.totalActual)],
-    ['Общее отклонение', round2(result.totals.totalDelta)],
+    ['Номер отгрузки', shipment.number],
+    ['Цель (ВЕС)', shipment.targetVesKg],
+    ['Цель (СИТО)', shipment.targetSitoKg],
+    ['Цель (ЛАК)', shipment.targetLakKg],
+    ['Факт', round2(shipment.totalActual)],
+    ['Δ', round2(shipment.totalDelta)],
     ['Дата расчёта', calculatedAt.toISOString()],
   ]
-
-  const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows)
-  wsSummary['!cols'] = [{ wch: 28 }, { wch: 24 }]
+  const wsSummary = XLSX.utils.aoa_to_sheet(summary)
+  wsSummary['!cols'] = [{ wch: 24 }, { wch: 24 }]
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Сводка')
 
-  const date = calculatedAt.toISOString().slice(0, 19).replace(/[:T]/g, '-')
+  const date = calculatedAt.toISOString().slice(0, 10)
   const safeCompany = sanitizeFilenamePart(companyName || 'company')
-  XLSX.writeFile(wb, `shipment_${safeCompany}_${date}.xlsx`)
+  XLSX.writeFile(wb, `Отгрузка_${shipment.number}_${safeCompany}_${date}.xlsx`)
 }
 
 export function exportCalculationHistoryToExcel(calc: HistoryCalculation) {
-  const result: CalculationResult = {
-    items: calc.items.map((row) => ({
-      itemId: row.itemId,
-      name: row.item.name,
-      type: row.item.type,
-      share: calc.totalWeight > 0 ? row.calcWeight / calc.totalWeight : 0,
-      packWeight: row.item.packWeight,
-      calcWeight: row.calcWeight,
-      adjustedWeight: row.adjustedWeight,
-      packs: row.packs,
-      factWeight: row.factWeight,
-      delta: row.delta,
-      newBalance: row.delta,
-    })),
-    totals: {
-      totalRequested: calc.totalWeight,
-      totalCalcWeight: calc.items.reduce((sum, row) => sum + row.calcWeight, 0),
-      totalActual: calc.totalActual,
-      totalDelta: calc.totalDelta,
-    },
+  // Build a PlannedShipment-like object for export
+  const items = calc.items.map((row) => ({
+    itemId: row.itemId,
+    name: row.item.name,
+    article: row.item.article,
+    type: row.item.type,
+    packWeight: row.item.packWeight,
+    lotKg: row.item.lotKg,
+    share: calc.totalWeight > 0 ? row.calcWeight / calc.totalWeight : 0,
+    calcWeight: row.calcWeight,
+    adjustedWeight: row.adjustedWeight,
+    packs: row.packs,
+    factWeight: row.factWeight,
+    delta: row.delta,
+    isPartial: calc.allowPartialPack,
+  }))
+
+  const shipment: PlannedShipment = {
+    number: calc.shipmentNumber,
+    status: 'executed',
+    allowPartialPack: calc.allowPartialPack,
+    calculationId: calc.id,
+    createdAt: calc.createdAt,
+    targetVesKg: 0,
+    targetSitoKg: 0,
+    targetLakKg: 0,
+    totalTarget: calc.totalWeight,
+    totalActual: calc.totalActual,
+    totalDelta: calc.totalDelta,
+    items,
   }
 
-  exportShipmentToExcel(result, calc.companyName, new Date(calc.createdAt))
+  exportShipmentToExcel(shipment, calc.companyName, new Date(calc.createdAt))
 }

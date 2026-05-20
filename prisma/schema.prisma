@@ -7,48 +7,43 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// VES  = weight-sorted fractions, boxes ~10 kg
+// SITO = sieve (unsorted fractional), bags ~25 kg
+// LAK  = black lacquer, boxes ~10 kg
+enum ItemType {
+  VES
+  SITO
+  LAK
+}
+
 model Item {
   id              String   @id @default(cuid())
   name            String
+  article         String   @unique
   type            ItemType
   packWeight      Float
-  defaultPacks    Int      @default(0)
-  weightConfirmed Boolean  @default(false)
+  lotKg           Float    @default(0)
+  weightConfirmed Boolean  @default(true)
 
-  distributions   DistributionItem[]
   histories       CalculationHistory[]
   calculationRows CalculationItem[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-enum ItemType {
-  fraction
-  sieve
-}
-
-model DistributionConfig {
-  id        String   @id @default(cuid())
-  name      String
-  isActive  Boolean  @default(true)
-
-  items     DistributionItem[]
+model CompanyOrder {
+  id          String @id @default(cuid())
+  year        Int    @default(2026)
+  companyName String
+  vesKg       Float  @default(0)
+  sitoKg      Float  @default(0)
+  lakKg       Float  @default(0)
 
   createdAt DateTime @default(now())
-}
+  updatedAt DateTime @updatedAt
 
-model DistributionItem {
-  id        String   @id @default(cuid())
-  configId  String
-  itemId    String
-  share     Float
-  enabled   Boolean  @default(true)
-
-  config    DistributionConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
-  item      Item               @relation(fields: [itemId], references: [id], onDelete: Cascade)
-
-  @@unique([configId, itemId])
+  @@unique([companyName, year])
 }
 
 model Calculation {
@@ -59,11 +54,12 @@ model Calculation {
   totalActual      Float
   totalDelta       Float
   allowPartialPack Boolean           @default(false)
+  shipmentNumber   Int               @default(1)
   deletedAt        DateTime?
   createdAt        DateTime          @default(now())
 
-  items         CalculationItem[]
-  histories     CalculationHistory[]
+  items     CalculationItem[]
+  histories CalculationHistory[]
 }
 
 enum CalculationStatus {
@@ -71,26 +67,26 @@ enum CalculationStatus {
 }
 
 model CalculationItem {
-  id              String   @id @default(cuid())
-  calculationId   String
-  itemId          String
-  calcWeight      Float
-  adjustedWeight  Float
-  packs           Int
-  factWeight      Float
-  delta           Float
+  id             String @id @default(cuid())
+  calculationId  String
+  itemId         String
+  calcWeight     Float
+  adjustedWeight Float
+  packs          Int
+  factWeight     Float
+  delta          Float
 
-  calculation     Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
-  item            Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  calculation Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  item        Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
 }
 
 model CalculationHistory {
-  id            String      @id @default(cuid())
+  id            String   @id @default(cuid())
   calculationId String
   itemId        String
   delta         Float
-  createdAt     DateTime    @default(now())
+  createdAt     DateTime @default(now())
 
-  calculation   Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
-  item          Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  calculation Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  item        Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
 }

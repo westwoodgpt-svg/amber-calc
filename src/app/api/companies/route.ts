@@ -3,16 +3,17 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+// Returns company names that have annual orders for the given year
+export async function GET(request: Request) {
   try {
-    const rows = await prisma.calculation.findMany({
-      where: { status: 'COMPLETED', deletedAt: null },
+    const { searchParams } = new URL(request.url)
+    const year = Number(searchParams.get('year') ?? 2026)
+    const orders = await prisma.companyOrder.findMany({
+      where: { year },
       select: { companyName: true },
-      distinct: ['companyName'],
       orderBy: { companyName: 'asc' },
     })
-    const names = rows.map((r) => r.companyName).filter(Boolean)
-    return NextResponse.json(names)
+    return NextResponse.json(orders.map((o) => o.companyName))
   } catch (error) {
     console.error('GET /api/companies failed', error)
     return NextResponse.json([], { status: 500 })

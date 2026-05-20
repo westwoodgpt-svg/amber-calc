@@ -14,7 +14,14 @@
       "Bash(git commit -m 'feat: visual stock update feedback on save *)",
       "Bash(npm list *)",
       "Bash(npm install *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(python -c ' *)",
+      "Bash(set DATABASE_URL=postgresql://neondb_owner:npg_9SNoj4gGatZi@ep-orange-wave-alpmeu56.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require)",
+      "Bash(npx prisma *)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_9SNoj4gGatZi@ep-orange-wave-alpmeu56.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require\" npx prisma db push --force-reset --accept-data-loss)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_9SNoj4gGatZi@ep-orange-wave-alpmeu56.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require\" node scripts/seed-amber.mjs)",
+      "Bash(del /f src\\\\components\\\\CalculationResult.tsx src\\\\components\\\\ContainerTable.tsx)",
+      "Bash(npm run *)"
     ]
   }
 }

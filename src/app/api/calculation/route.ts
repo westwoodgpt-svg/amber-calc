@@ -1,107 +1,59 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { calculateShipment, validateDistribution } from '@/lib/calculateShipment'
-import type { CalculationWarning } from '@/lib/types'
+import { computeCategory } from '@/lib/calculateShipment'
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const totalWeight = Number(body.totalWeight)
     const companyName = typeof body.companyName === 'string' ? body.companyName.trim() : ''
-    const allowPartialPack = Boolean(body.allowPartialPack)
+    const shipmentNumber = Number(body.shipmentNumber ?? 1)
+    const year = Number(body.year ?? 2026)
 
     if (!companyName) {
       return NextResponse.json({ error: 'Введите название компании' }, { status: 400 })
     }
-
-    if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
-      return NextResponse.json({ error: 'Общий вес должен быть положительным числом' }, { status: 400 })
+    if (shipmentNumber < 1 || shipmentNumber > 5 || !Number.isInteger(shipmentNumber)) {
+      return NextResponse.json({ error: 'Номер отгрузки должен быть от 1 до 5' }, { status: 400 })
     }
 
-    const [allItems, config] = await Promise.all([
-      prisma.item.findMany({ orderBy: { createdAt: 'asc' } }),
-      prisma.distributionConfig.findFirst({
-        where: { isActive: true },
-        orderBy: { createdAt: 'desc' },
-        include: {
-          items: {
-            include: { item: true },
-          },
-        },
+    const [order, items] = await Promise.all([
+      prisma.companyOrder.findUnique({
+        where: { companyName_year: { companyName, year } },
       }),
+      prisma.item.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
     ])
 
-    if (!config || config.items.length === 0) {
-      return NextResponse.json({ error: 'Нет активного распределения с долями' }, { status: 400 })
-    }
-
-    const warnings: CalculationWarning[] = []
-    const enabledDistributionRows = config.items.filter((row) => row.enabled)
-
-    if (enabledDistributionRows.length === 0) {
-      return NextResponse.json({ error: 'Нет включённых позиций в распределении' }, { status: 400 })
-    }
-
-    const distribution = enabledDistributionRows.map((row) => ({ itemId: row.itemId, share: row.share }))
-    const { valid, sum } = validateDistribution(distribution, 0.001)
-    if (!valid) {
-      return NextResponse.json({ error: `Сумма долей должна быть равна 1 ±0.001 (сейчас ${sum})` }, { status: 400 })
-    }
-
-    const enabledIds = new Set(enabledDistributionRows.map((row) => row.itemId))
-    for (const item of allItems) {
-      if (!enabledIds.has(item.id)) {
-        warnings.push({
-          code: 'MISSING_DISTRIBUTION',
-          itemId: item.id,
-          message: `Позиция "${item.name}" не включена в распределение и исключена из расчёта`,
-        })
-      }
-    }
-
-    const activeRows = enabledDistributionRows.filter((row) => {
-      if (row.item.packWeight <= 0 || !Number.isFinite(row.item.packWeight)) {
-        warnings.push({
-          code: 'INVALID_PACK_WEIGHT',
-          itemId: row.itemId,
-          message: `Позиция "${row.item.name}" имеет некорректный packWeight и исключена из расчёта`,
-        })
-        return false
-      }
-
-      if (!row.item.weightConfirmed) {
-        warnings.push({
-          code: 'UNCONFIRMED_WEIGHT',
-          itemId: row.itemId,
-          message: `Позиция "${row.item.name}" без подтверждения веса и исключена из расчёта`,
-        })
-        return false
-      }
-
-      return true
-    })
-
-    if (activeRows.length === 0) {
+    if (!order) {
       return NextResponse.json(
-        { error: 'Нет позиций, пригодных для расчёта после проверок', warnings },
+        { error: `Заявка компании «${companyName}» на ${year} год не найдена. Добавьте её на странице «Заявки».` },
         { status: 400 },
       )
     }
 
-    const activeItemIds = new Set(activeRows.map((row) => row.itemId))
-    const activeDistribution = distribution.filter((row) => activeItemIds.has(row.itemId))
+    // Check this shipment number hasn't been executed yet
+    const alreadyDone = await prisma.calculation.findFirst({
+      where: { companyName, shipmentNumber, status: 'COMPLETED', deletedAt: null },
+    })
+    if (alreadyDone) {
+      return NextResponse.json(
+        { error: `Отгрузка №${shipmentNumber} для «${companyName}» уже выполнена (ID: ${alreadyDone.id})` },
+        { status: 400 },
+      )
+    }
 
-    // Balance is per-company: only this company's prior orders affect their allocation.
-    // This ensures Company A's pack-rounding surpluses don't penalise Company B.
+    const isPartial = shipmentNumber === 5
+
+    const vesItems = items.filter((i) => i.type === 'VES')
+    const sitoItems = items.filter((i) => i.type === 'SITO')
+    const lakItems = items.filter((i) => i.type === 'LAK')
+
+    // Load per-company balance from prior shipments
+    const allActiveItemIds = items.map((i) => i.id)
     const balanceRows = await prisma.calculationHistory.groupBy({
       by: ['itemId'],
       where: {
-        itemId: { in: [...activeItemIds] },
-        calculation: {
-          status: 'COMPLETED',
-          deletedAt: null,
-          companyName,
-        },
+        itemId: { in: allActiveItemIds },
+        calculation: { status: 'COMPLETED', deletedAt: null, companyName },
       },
       _sum: { delta: true },
     })
@@ -111,12 +63,28 @@ export async function POST(request: Request) {
       balance[row.itemId] = Number(row._sum.delta ?? 0)
     }
 
-    const result = calculateShipment(
-      totalWeight,
-      activeRows.map((row) => row.item),
-      activeDistribution,
-      balance,
-      allowPartialPack,
+    const perShipVes = order.vesKg / 5
+    const perShipSito = order.sitoKg / 5
+    const perShipLak = order.lakKg / 5
+
+    const vesResult = order.vesKg > 0 ? computeCategory(perShipVes, vesItems, balance, isPartial) : null
+    const sitoResult = order.sitoKg > 0 ? computeCategory(perShipSito, sitoItems, balance, isPartial) : null
+    const lakResult = order.lakKg > 0 ? computeCategory(perShipLak, lakItems, balance, isPartial) : null
+
+    const allItems = [
+      ...(vesResult?.items ?? []),
+      ...(sitoResult?.items ?? []),
+      ...(lakResult?.items ?? []),
+    ]
+
+    const totalRequested = Number(
+      ((vesResult?.targetKg ?? 0) + (sitoResult?.targetKg ?? 0) + (lakResult?.targetKg ?? 0)).toFixed(2),
+    )
+    const totalActual = Number(
+      ((vesResult?.totalActual ?? 0) + (sitoResult?.totalActual ?? 0) + (lakResult?.totalActual ?? 0)).toFixed(2),
+    )
+    const totalDelta = Number(
+      ((vesResult?.totalDelta ?? 0) + (sitoResult?.totalDelta ?? 0) + (lakResult?.totalDelta ?? 0)).toFixed(2),
     )
 
     const calculation = await prisma.$transaction(async (tx) => {
@@ -124,16 +92,17 @@ export async function POST(request: Request) {
         data: {
           status: 'COMPLETED',
           companyName,
-          totalWeight: result.totals.totalRequested,
-          totalActual: result.totals.totalActual,
-          totalDelta: result.totals.totalDelta,
-          allowPartialPack,
+          totalWeight: totalRequested,
+          totalActual,
+          totalDelta,
+          allowPartialPack: isPartial,
+          shipmentNumber,
         },
       })
 
-      if (result.items.length > 0) {
+      if (allItems.length > 0) {
         await tx.calculationItem.createMany({
-          data: result.items.map((row) => ({
+          data: allItems.map((row) => ({
             calculationId: calc.id,
             itemId: row.itemId,
             calcWeight: row.calcWeight,
@@ -145,7 +114,7 @@ export async function POST(request: Request) {
         })
 
         await tx.calculationHistory.createMany({
-          data: result.items.map((row) => ({
+          data: allItems.map((row) => ({
             calculationId: calc.id,
             itemId: row.itemId,
             delta: row.delta,
@@ -156,7 +125,6 @@ export async function POST(request: Request) {
       return calc
     })
 
-    // Count prior non-deleted calculations for this company (excluding the one just created)
     const priorCount = await prisma.calculation.count({
       where: { companyName, status: 'COMPLETED', deletedAt: null, id: { not: calculation.id } },
     })
@@ -165,9 +133,11 @@ export async function POST(request: Request) {
       calculationId: calculation.id,
       createdAt: calculation.createdAt,
       companyName,
+      shipmentNumber,
       priorOrderCount: priorCount,
-      warnings,
-      ...result,
+      warnings: [],
+      items: allItems,
+      totals: { totalRequested, totalCalcWeight: totalRequested, totalActual, totalDelta },
     })
   } catch (error) {
     console.error('POST /api/calculation failed', error)

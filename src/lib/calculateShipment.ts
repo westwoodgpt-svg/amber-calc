@@ -1,11 +1,21 @@
 import type { ItemType } from '@prisma/client'
-import type { CalculationResult, DistributionItemShare, ShipmentItemResult } from './types'
+import type { PlannedShipmentItem } from './types'
 
-interface CalcItem {
+export interface CalcItem {
   id: string
   name: string
+  article: string
   type: ItemType
   packWeight: number
+  lotKg: number
+}
+
+export interface CategoryResult {
+  targetKg: number
+  items: PlannedShipmentItem[]
+  totalCalcWeight: number
+  totalActual: number
+  totalDelta: number
 }
 
 function round2(value: number): number {
@@ -17,35 +27,35 @@ function safeNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(num) ? num : fallback
 }
 
-export function calculateShipment(
-  totalWeight: number,
+/**
+ * Compute one category's shipment allocation.
+ *
+ * @param targetKg      Total kg to allocate for this category in this shipment
+ * @param items         All items in this category
+ * @param balance       Accumulated delta per itemId from prior shipments (same company)
+ * @param allowPartial  If true, last unit may be partial (5th shipment zero-out mode)
+ */
+export function computeCategory(
+  targetKg: number,
   items: CalcItem[],
-  distribution: DistributionItemShare[],
   balance: Record<string, number>,
-  allowPartialPack = false,
-): CalculationResult {
-  const safeTotalWeight = safeNumber(totalWeight)
-  if (safeTotalWeight <= 0) {
-    throw new Error('Общий вес должен быть положительным числом')
+  allowPartial = false,
+): CategoryResult {
+  const safeTarget = safeNumber(targetKg)
+  const totalLot = items.reduce((s, i) => s + i.lotKg, 0)
+  if (totalLot <= 0) {
+    return { targetKg: safeTarget, items: [], totalCalcWeight: 0, totalActual: 0, totalDelta: 0 }
   }
 
-  const itemById = new Map(items.map((item) => [item.id, item]))
-  const results: ShipmentItemResult[] = []
+  const results: PlannedShipmentItem[] = []
 
-  for (const dist of distribution) {
-    const item = itemById.get(dist.itemId)
-    if (!item) continue
-
-    const share = safeNumber(dist.share)
+  for (const item of items) {
+    if (item.lotKg <= 0) continue
     const packWeight = safeNumber(item.packWeight)
-    if (share < 0) {
-      throw new Error(`Доля позиции "${item.name}" не может быть отрицательной`)
-    }
-    if (packWeight <= 0) {
-      throw new Error(`Вес упаковки позиции "${item.name}" должен быть больше 0`)
-    }
+    if (packWeight <= 0) continue
 
-    const calcWeight = safeTotalWeight * share
+    const share = item.lotKg / totalLot
+    const calcWeight = safeTarget * share
     const prevBalance = safeNumber(balance[item.id])
     const adjustedWeight = calcWeight - prevBalance
 
@@ -56,52 +66,118 @@ export function calculateShipment(
     if (adjustedWeight <= 0) {
       packs = 0
       factWeight = 0
-    } else if (allowPartialPack) {
-      // Open last bag: take exact amount, last unit may be partial
+    } else if (allowPartial) {
       packs = Math.ceil(adjustedWeight / packWeight)
       factWeight = adjustedWeight
       isPartial = (adjustedWeight % packWeight) > 0.0001
     } else {
-      // Full packs only: always round up to whole pack
       packs = Math.ceil(adjustedWeight / packWeight)
       factWeight = packs * packWeight
     }
 
     const delta = round2(factWeight - calcWeight)
-    const newBalance = delta
 
     results.push({
       itemId: item.id,
       name: item.name,
+      article: item.article,
       type: item.type,
-      share,
       packWeight,
+      lotKg: item.lotKg,
+      share: round2(share),
       calcWeight: round2(calcWeight),
       adjustedWeight: round2(adjustedWeight),
       packs,
       factWeight: round2(factWeight),
       delta,
-      newBalance: round2(newBalance),
       isPartial,
     })
   }
 
-  const totalCalcWeight = results.reduce((sum, row) => sum + row.calcWeight, 0)
-  const totalActual = results.reduce((sum, row) => sum + row.factWeight, 0)
-  const totalDelta = results.reduce((sum, row) => sum + row.delta, 0)
+  const totalCalcWeight = round2(results.reduce((s, r) => s + r.calcWeight, 0))
+  const totalActual = round2(results.reduce((s, r) => s + r.factWeight, 0))
+  const totalDelta = round2(results.reduce((s, r) => s + r.delta, 0))
 
-  return {
-    items: results,
-    totals: {
-      totalRequested: round2(safeTotalWeight),
-      totalCalcWeight: round2(totalCalcWeight),
-      totalActual: round2(totalActual),
-      totalDelta: round2(totalDelta),
-    },
-  }
+  return { targetKg: round2(safeTarget), items: results, totalCalcWeight, totalActual, totalDelta }
 }
 
-export function validateDistribution(distribution: DistributionItemShare[], tolerance = 0.0001): { valid: boolean; sum: number } {
-  const sum = distribution.reduce((acc, row) => acc + safeNumber(row.share), 0)
-  return { valid: Math.abs(sum - 1) <= tolerance, sum: round2(sum) }
+/**
+ * Compute all 5 planned shipments for a company.
+ * executedBalances: actual per-item delta sums from already-saved shipments in DB.
+ * executedShipmentNumbers: which shipment numbers have already been executed.
+ */
+export function planAllShipments(
+  vesItems: CalcItem[],
+  sitoItems: CalcItem[],
+  lakItems: CalcItem[],
+  annualVesKg: number,
+  annualSitoKg: number,
+  annualLakKg: number,
+  executedBalance: Record<string, number>,
+  executedShipmentNumbers: Set<number>,
+) {
+  const perShipVes = annualVesKg / 5
+  const perShipSito = annualSitoKg / 5
+  const perShipLak = annualLakKg / 5
+
+  const plans = []
+  let runningBalance = { ...executedBalance }
+
+  for (let n = 1; n <= 5; n++) {
+    const isPartial = n === 5
+    const status = executedShipmentNumbers.has(n) ? 'executed' : 'planned'
+
+    // For planned shipments, compute from running balance (accumulated deltas)
+    const vesResult = annualVesKg > 0
+      ? computeCategory(perShipVes, vesItems, runningBalance, isPartial)
+      : null
+    const sitoResult = annualSitoKg > 0
+      ? computeCategory(perShipSito, sitoItems, runningBalance, isPartial)
+      : null
+    const lakResult = annualLakKg > 0
+      ? computeCategory(perShipLak, lakItems, runningBalance, isPartial)
+      : null
+
+    const allItems = [
+      ...(vesResult?.items ?? []),
+      ...(sitoResult?.items ?? []),
+      ...(lakResult?.items ?? []),
+    ]
+
+    const totalTarget = round2(
+      (vesResult?.targetKg ?? 0) + (sitoResult?.targetKg ?? 0) + (lakResult?.targetKg ?? 0),
+    )
+    const totalActual = round2(
+      (vesResult?.totalActual ?? 0) + (sitoResult?.totalActual ?? 0) + (lakResult?.totalActual ?? 0),
+    )
+    const totalDelta = round2(
+      (vesResult?.totalDelta ?? 0) + (sitoResult?.totalDelta ?? 0) + (lakResult?.totalDelta ?? 0),
+    )
+
+    plans.push({
+      number: n,
+      status: status as 'executed' | 'planned',
+      allowPartialPack: isPartial,
+      calculationId: undefined as string | undefined,
+      createdAt: undefined as string | undefined,
+      targetVesKg: vesResult?.targetKg ?? 0,
+      targetSitoKg: sitoResult?.targetKg ?? 0,
+      targetLakKg: lakResult?.targetKg ?? 0,
+      totalTarget,
+      totalActual,
+      totalDelta,
+      items: allItems,
+    })
+
+    // If this shipment is planned (not yet executed), carry its delta forward
+    // for subsequent projections.
+    // If it IS executed, the real balance is already in executedBalance.
+    if (status === 'planned') {
+      for (const item of allItems) {
+        runningBalance[item.itemId] = (runningBalance[item.itemId] ?? 0) + item.delta
+      }
+    }
+  }
+
+  return plans
 }

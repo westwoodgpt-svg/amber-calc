@@ -15,8 +15,11 @@ export default function Navbar() {
         <Link href="/" className={`nav-link ${path === '/' ? 'active' : ''}`}>
           Калькулятор
         </Link>
-        <Link href="/distribution" className={`nav-link ${path === '/distribution' ? 'active' : ''}`}>
-          Распределение
+        <Link href="/orders" className={`nav-link ${path === '/orders' ? 'active' : ''}`}>
+          Заявки
+        </Link>
+        <Link href="/lot" className={`nav-link ${path === '/lot' ? 'active' : ''}`}>
+          Состав лота
         </Link>
         <Link href="/history" className={`nav-link ${path === '/history' ? 'active' : ''}`}>
           История

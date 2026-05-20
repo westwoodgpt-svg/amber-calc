@@ -74,9 +74,12 @@ export default function HistoryPage() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
                 <span style={{ fontWeight: 600, fontSize: 15 }}>{calc.companyName || '—'}</span>
+                <span style={{ fontSize: 11, background: 'var(--bg-secondary, #ffffff11)', color: 'var(--text-muted)', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>
+                  отгрузка №{calc.shipmentNumber}
+                </span>
                 {calc.allowPartialPack && (
                   <span style={{ fontSize: 11, color: 'var(--amber)', background: 'var(--amber-dim, #ff990022)', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>
-                    открытый мешок
+                    выход в ноль
                   </span>
                 )}
               </div>

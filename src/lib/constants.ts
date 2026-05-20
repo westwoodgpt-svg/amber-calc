@@ -1,45 +1,35 @@
 import type { ItemType } from '@prisma/client'
 
-export const ITEM_TYPES: ItemType[] = ['fraction', 'sieve']
+export const ITEM_TYPES: ItemType[] = ['VES', 'SITO', 'LAK']
 
 export const TYPE_DEFAULT_PACK_WEIGHT: Record<ItemType, number> = {
-  fraction: 10,
-  sieve: 25,
+  VES: 10,
+  SITO: 25,
+  LAK: 10,
 }
 
 export const TYPE_LABELS: Record<ItemType, string> = {
-  fraction: 'Фракционный',
-  sieve: 'Сито',
+  VES: 'Вес',
+  SITO: 'Сито',
+  LAK: 'Лак',
 }
 
 export const TYPE_EXPORT_LABELS: Record<ItemType, string> = {
-  fraction: 'Фракция',
-  sieve: 'Сито',
+  VES: 'Вес',
+  SITO: 'Сито',
+  LAK: 'Лак',
 }
 
 export const TYPE_DESCRIPTIONS: Record<ItemType, string> = {
-  fraction: 'Коробки, по умолчанию 10 кг',
-  sieve: 'Мешки, по умолчанию 25 кг',
+  VES: 'Фракционный весовой, коробки ~10 кг',
+  SITO: 'Сито (несортированный), мешки ~25 кг',
+  LAK: 'Чёрный лак, коробки ~10 кг',
 }
 
 export const TYPE_COLORS: Record<ItemType, string> = {
-  fraction: '#2563eb',
-  sieve: '#059669',
-}
-
-export const baseShareMap: Record<string, number> = {
-  'Фракция 5-10': 0.12,
-  'Фракция 10-20': 0.18,
-  'Фракция 20-40': 0.16,
-  'Фракция 40-60': 0.14,
-  'Фракция 60-80': 0.1,
-  'Сито 1': 0.1,
-  'Сито 2': 0.1,
-  'Сито 3': 0.1,
-}
-
-export function defaultName(type: ItemType): string {
-  return type === 'fraction' ? 'Фракционный камень' : 'Сито'
+  VES: '#2563eb',
+  SITO: '#059669',
+  LAK: '#7c3aed',
 }
 
 export function sanitizeFilenamePart(input: string): string {

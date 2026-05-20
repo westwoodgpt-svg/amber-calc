@@ -3,43 +3,36 @@ import type { CalculationStatus, ItemType } from '@prisma/client'
 export interface Item {
   id: string
   name: string
+  article: string
   type: ItemType
   packWeight: number
-  defaultPacks: number
+  lotKg: number
   weightConfirmed: boolean
   createdAt: string
   updatedAt: string
 }
 
-export interface DistributionItemShare {
-  itemId: string
-  share: number
-  enabled?: boolean
-}
-
-export interface DistributionItemView {
+export interface CompanyOrder {
   id: string
-  configId: string
-  itemId: string
-  share: number
-  enabled: boolean
-  item: Item
-}
-
-export interface DistributionConfigView {
-  id: string
-  name: string
-  isActive: boolean
+  year: number
+  companyName: string
+  vesKg: number
+  sitoKg: number
+  lakKg: number
   createdAt: string
-  items: DistributionItemView[]
+  updatedAt: string
 }
+
+// ── Calculation result (single shipment) ─────────────────────────────────────
 
 export interface ShipmentItemResult {
   itemId: string
   name: string
+  article: string
   type: ItemType
   share: number
   packWeight: number
+  lotKg: number
   calcWeight: number
   adjustedWeight: number
   packs: number
@@ -65,13 +58,62 @@ export interface CalculationWarning {
   message: string
 }
 
-export interface CalculateResponse extends CalculationResult {
+export interface CalculateResponse {
   calculationId: string
   createdAt: string
   companyName: string
+  shipmentNumber: number
   priorOrderCount: number
   warnings: CalculationWarning[]
+  items: ShipmentItemResult[]
+  totals: {
+    totalRequested: number
+    totalCalcWeight: number
+    totalActual: number
+    totalDelta: number
+  }
 }
+
+// ── 5-shipment plan ───────────────────────────────────────────────────────────
+
+export interface PlannedShipmentItem {
+  itemId: string
+  name: string
+  article: string
+  type: ItemType
+  packWeight: number
+  lotKg: number
+  share: number
+  calcWeight: number
+  adjustedWeight: number
+  packs: number
+  factWeight: number
+  delta: number
+  isPartial: boolean
+}
+
+export interface PlannedShipment {
+  number: number
+  status: 'executed' | 'planned'
+  allowPartialPack: boolean
+  calculationId?: string
+  createdAt?: string
+  targetVesKg: number
+  targetSitoKg: number
+  targetLakKg: number
+  totalTarget: number
+  totalActual: number
+  totalDelta: number
+  items: PlannedShipmentItem[]
+}
+
+export interface ShipmentPlanResponse {
+  order: CompanyOrder
+  executedCount: number
+  shipments: PlannedShipment[]
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
 
 export interface HistoryCalculation {
   id: string
@@ -81,6 +123,7 @@ export interface HistoryCalculation {
   totalActual: number
   totalDelta: number
   allowPartialPack: boolean
+  shipmentNumber: number
   deletedAt: string | null
   createdAt: string
   items: Array<{
